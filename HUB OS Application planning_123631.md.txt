@@ -1,0 +1,430 @@
+APPLICATION : HUB OS Application 
+
+
+
+PROBLEM:
+
+
+
+SOLUTION: 
+
+
+
+
+
+FEATURES
+
+
+
+
+
+* application must show the different sections of the hotel, starting from B3 to 11th floor 
+* application must have a section to report issues and states its current state (ongoing or completed) to various departments
+* application must be able to reflect the raised issues to the specific departments,
+* application must be able to show notifications and update on its current status
+* ability to add images when reporting an issue and optional when fixing an issue
+* we use local host, (MUCH HARDER) we will use Cloudflare for storage (way cheaper) and firebase for authentication (free)
+
+
+
+
+
+KEY PARTS TO NOTE 
+
+
+
+* authentication (different roles, employee, manager and system admins), image storage
+* 
+* notifications 
+
+
+
+1\. when an issue is raised, 
+
+2\. when an issue is solved 
+
+3\. Notifications are sent to the various department members, people from other departments cannot see issue from the other department except the IT team and others
+
+4\. 
+
+
+
+* a user can only view issue raised in their own departments 
+* for the issues, raised their is a text input field and image input field
+* for solved issues, the one who has solved must add a text or image for clarification 
+* 
+* IT team can assign roles to the other departments, in terms of, inorder for anyone to use the application, the
+
+system administrator has to add their email, then assign a department, after that, the user can now login, meaning one cannot login not unless added by the system admins (if one tries to login they will be told to contact IT office novotel westlands nairobi)
+
+
+
+* 
+
+
+
+
+
+
+
+SECTIONS 
+
+
+
+* 11th floor - TnT, kitchen 
+* 10th floor - kitchen, executive lounge, pool bar, swimming pool, rooms from 
+* 9th floor to 2nd floor - rooms 
+* 1st floor - meeting rooms, washrooms, spa, gym 
+* Ground floor - gemma's, kitchen, social hub, front office, simba ball room 
+* Basement 1 - Backoffice( fnb, IT, sales and marketing, GMs office, Hotel manager office, washrooms) Finance, cafeteria and parking 
+* Basement 2 - Parking, Baking, Control room, laundry 
+* Basement 3 - Engineering, parking and stores 
+
+
+
+Departments 
+
+
+
+* Engineering
+* IT
+* Housekeeping
+* Front office
+* Security
+* FnB
+
+
+
+
+
+
+
+User Interface(normal users)
+
+* Hotel sections
+* Issues section
+* Settings 
+
+
+
+User Interface (managers)
+
+* hotel sections
+* issues section (only issues raise in their department)
+* settings button 
+
+
+
+
+
+User Interface (System Admins)
+
+
+
+* Hotel Section
+* issues (can view issues from all departments)
+* Settings
+* Ability to add users, remove users and give them rights, (employees, manager or system admins)
+* kill switch to switch the app off completely 
+* 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\# \*\*HUB OS Application – Final Specification Document\*\*
+
+
+
+\### \*\*Application Name\*\*
+
+\*\*HUB OS\*\* – Novotel Westlands Nairobi Internal Operations System
+
+
+
+\### \*\*Problem Statement\*\*
+
+Current issue reporting at the hotel relies on WhatsApp groups, paper logs, and verbal communication. This leads to:
+
+\- Delayed response times
+
+\- Lost or forgotten issues
+
+\- No accountability or proof of resolution
+
+\- Difficulty tracking recurring problems
+
+\- Department silos and poor visibility for management
+
+
+
+\### \*\*Solution\*\*
+
+A centralized, real-time, mobile-friendly web application that allows every staff member to report issues instantly with photos, tracks progress, notifies the right people, and provides full transparency and audit trail — all while maintaining strict department privacy.
+
+
+
+---
+
+
+
+\### \*\*Core Objectives\*\*
+
+1\. Zero lost issues
+
+2\. Instant notification \& accountability
+
+3\. Visual proof before and after resolution
+
+4\. Full visibility for managers \& IT
+
+5\. Simple, fast, foolproof interface used by all staff levels
+
+
+
+---
+
+
+
+\### \*\*Complete Feature List\*\*
+
+
+
+1\. \*\*Interactive Hotel Map/Section Selector\*\*  
+
+&nbsp;  - Floor-by-floor navigation from B3 to 11th Floor  
+
+&nbsp;  - All areas accurately labeled (as per section list below)
+
+
+
+2\. \*\*Issue Reporting\*\*  
+
+&nbsp;  - Select exact location in the hotel  
+
+&nbsp;  - Text description (mandatory)  
+
+&nbsp;  - Photo upload (mandatory when reporting)  
+
+&nbsp;  - Automatically routed to correct department  
+
+&nbsp;  - Status: \*\*Ongoing\*\* → \*\*Completed\*\*
+
+
+
+3\. \*\*Issue Resolution\*\*  
+
+&nbsp;  - Assigned department member marks as "Completed"  
+
+&nbsp;  - Must add resolution notes (text mandatory)  
+
+&nbsp;  - Optional photo proof of fix
+
+
+
+4\. \*\*Real-Time Notifications (In-App + Push)\*\*  
+
+&nbsp;  - When issue is raised → all members of responsible department + managers  
+
+&nbsp;  - When issue is solved → original reporter + department members  
+
+&nbsp;  - IT \& System Admins receive notifications for all issues
+
+
+
+5\. \*\*Strict Access Control\*\*  
+
+&nbsp;  - Users can ONLY see issues from their own department  
+
+&nbsp;  - Exception: IT team \& System Admins see everything
+
+
+
+6\. \*\*User Management (System Admin Only)\*\*  
+
+&nbsp;  - Add user by email  
+
+&nbsp;  - Assign Department + Role (Employee / Manager / System Admin)  
+
+&nbsp;  - Remove or deactivate users  
+
+&nbsp;  - No self-registration allowed  
+
+&nbsp;  - Unauthorized login → "Please contact IT Office, Novotel Westlands Nairobi"
+
+
+
+7\. \*\*Global Kill Switch (System Admin Only)\*\*  
+
+&nbsp;  - Instantly disable the entire application hotel-wide if needed
+
+
+
+---
+
+
+
+\### \*\*Hotel Layout (Final)\*\*
+
+
+
+| Floor          | Areas |
+
+|----------------|-------|
+
+| 11th Floor     | TnT, Kitchen |
+
+| 10th Floor     | Kitchen, Executive Lounge, Pool Bar, Swimming Pool, Guest Rooms |
+
+| 9th – 2nd Floor| Guest Rooms only |
+
+| 1st Floor      | Meeting Rooms, Washrooms, Spa, Gym |
+
+| Ground Floor   | Gemma’s Restaurant, Main Kitchen, Social Hub, Front Office, Simba Ballroom |
+
+| Basement 1     | Back Office (F\&B, IT, Sales \& Marketing, GM Office, Hotel Manager Office), Finance, Staff Cafeteria, Parking |
+
+| Basement 2     | Parking, Bakery, Control Room, Laundry |
+
+| Basement 3     | Engineering Workshop, Stores, Parking |
+
+
+
+---
+
+
+
+\### \*\*Departments (Final List)\*\*
+
+
+
+1\. Engineering  
+
+2\. IT  
+
+3\. Housekeeping  
+
+4\. Front Office  
+
+5\. Security  
+
+6\. Food \& Beverage (F\&B)
+
+
+
+---
+
+
+
+\### \*\*User Roles \& Permissions (Final)\*\*
+
+
+
+| Feature                     | Employee | Manager | System Admin |
+
+|-----------------------------|----------|---------|--------------|
+
+| View hotel sections         | Yes      | Yes     | Yes          |
+
+| Report issues               | Yes      | Yes     | Yes          |
+
+| View own department issues  | Yes      | Yes     | Yes          |
+
+| View ALL department issues  | No       | No      | Yes          |
+
+| Mark issues as solved       | Yes\*     | Yes     | Yes          |
+
+| Receive notifications       | Yes      | Yes     | Yes (all)    |
+
+| User Management             | No       | No      | Yes          |
+
+| Kill Switch                 | No       | No      | Yes          |
+
+
+
+\*Only for issues in their own department
+
+
+
+---
+
+
+
+\### \*\*Tech Stack (Final Decision)\*\*
+
+
+
+
+
+\- \*\*Backend\*\*: Firebase (Firestore + Cloud Functions)
+
+\- \*\*Authentication\*\*: Firebase Authentication (email only – no passwords exposed)
+
+\- \*\*Image Storage\*\*: Cloudflare R2 (S3-compatible, ~$0.015/GB – way cheaper than Firebase Storage)
+
+\- \*\*Push Notifications\*\*: Firebase Cloud Messaging (FCM)
+
+
+
+
+
+\### \*\*User Interface Summary (Final)\*\*
+
+
+
+\*\*Employee / Regular User\*\*
+
+\- Hotel Sections (interactive selector)
+
+\- My Issues (raised by me + department ongoing)
+
+\- Settings → Logout
+
+
+
+\*\*Department Manager\*\*
+
+\- Hotel Sections
+
+\- Department Issues (all ongoing + completed in their department)
+
+\- Settings → Logout
+
+
+
+\*\*System Admin / IT\*\*
+
+\- Hotel Sections
+
+\- All Issues (filter by department/floor/status)
+
+\- User Management
+
+\- App Settings
+
+\- Kill Switch
+
+\- Logout
+
+
+
+
+
