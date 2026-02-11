@@ -23,22 +23,25 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
   String? _selectedFloorId;
 
   // All hotel floors (B3 to 11)
+  // Floors 2-9: Guest rooms only (40 rooms each)
+  // Floor 10: Kitchen, Executive Lounge, Pool Bar, Swimming Pool + Guest Rooms
+  // Floor 11: TnT, Kitchen
   final List<FloorModel> _floors = const [
-    FloorModel(id: '11', name: '11th Floor', areas: []),
-    FloorModel(id: '10', name: '10th Floor', areas: []),
-    FloorModel(id: '9', name: '9th Floor', areas: []),
-    FloorModel(id: '8', name: '8th Floor', areas: []),
-    FloorModel(id: '7', name: '7th Floor', areas: []),
-    FloorModel(id: '6', name: '6th Floor', areas: []),
-    FloorModel(id: '5', name: '5th Floor', areas: []),
-    FloorModel(id: '4', name: '4th Floor', areas: []),
-    FloorModel(id: '3', name: '3rd Floor', areas: []),
-    FloorModel(id: '2', name: '2nd Floor', areas: []),
-    FloorModel(id: '1', name: '1st Floor', areas: ['Meeting Rooms', 'Washrooms', 'Spa', 'Gym']),
-    FloorModel(id: 'G', name: 'Ground Floor', areas: ["Gemma's", 'Main Kitchen', 'Social Hub', 'Front Office', 'Simba Ballroom']),
-    FloorModel(id: 'B1', name: 'Basement 1', areas: ['Back Office', 'Finance', 'Staff Cafeteria', 'Parking']),
-    FloorModel(id: 'B2', name: 'Basement 2', areas: ['Parking', 'Bakery', 'Control Room', 'Laundry']),
-    FloorModel(id: 'B3', name: 'Basement 3', areas: ['Engineering Workshop', 'Stores', 'Parking']),
+    FloorModel(id: '11', name: '11th Floor', areas: ['TnT', 'Kitchen', 'Corridor']),
+    FloorModel(id: '10', name: '10th Floor', areas: ['Kitchen', 'Executive Lounge', 'Pool Bar', 'Swimming Pool', 'Corridor']),
+    FloorModel(id: '9', name: '9th Floor', areas: ['Corridor']),
+    FloorModel(id: '8', name: '8th Floor', areas: ['Corridor']),
+    FloorModel(id: '7', name: '7th Floor', areas: ['Corridor']),
+    FloorModel(id: '6', name: '6th Floor', areas: ['Corridor']),
+    FloorModel(id: '5', name: '5th Floor', areas: ['Corridor']),
+    FloorModel(id: '4', name: '4th Floor', areas: ['Corridor']),
+    FloorModel(id: '3', name: '3rd Floor', areas: ['Corridor']),
+    FloorModel(id: '2', name: '2nd Floor', areas: ['Corridor']),
+    FloorModel(id: '1', name: '1st Floor', areas: ['Meeting Rooms', 'Washrooms', 'Spa', 'Gym', 'Corridor']),
+    FloorModel(id: 'G', name: 'Ground Floor', areas: ["Gemma's", 'Main Kitchen', 'Social Hub', 'Front Office', 'Simba Ballroom', 'Corridor']),
+    FloorModel(id: 'B1', name: 'Basement 1', areas: ['Back Office', 'Finance', 'Staff Cafeteria', 'Parking', 'Corridor']),
+    FloorModel(id: 'B2', name: 'Basement 2', areas: ['Parking', 'Bakery', 'Control Room', 'Laundry', 'Corridor']),
+    FloorModel(id: 'B3', name: 'Basement 3', areas: ['Engineering Workshop', 'Stores', 'Parking', 'Corridor']),
   ];
 
   // Mock issues for development
@@ -49,6 +52,12 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
     IssueModel(id: '4', floor: 'B2', area: 'Control Room', description: 'Security camera offline', status: 'Ongoing', priority: 'High', department: 'Security', timeAgo: '12m ago', timestamp: DateTime.now().subtract(const Duration(minutes: 12))),
     IssueModel(id: '5', floor: 'G', area: 'Main Kitchen', description: 'Freezer Temp Drop (-4C)', status: 'Ongoing', priority: 'High', department: 'Engineering', timeAgo: '1h ago', timestamp: DateTime.now().subtract(const Duration(hours: 1))),
     IssueModel(id: '6', floor: 'B1', area: 'Parking', description: 'Parking gate malfunction', status: 'Ongoing', priority: 'Low', department: 'Engineering', timeAgo: '3h ago', timestamp: DateTime.now().subtract(const Duration(hours: 3))),
+    // Room issues for testing
+    IssueModel(id: '7', floor: '7', area: 'Room 712', description: 'AC not cooling', status: 'Ongoing', priority: 'High', department: 'Engineering', timeAgo: '30m ago', timestamp: DateTime.now().subtract(const Duration(minutes: 30))),
+    IssueModel(id: '8', floor: '7', area: 'Room 725', description: 'TV remote missing', status: 'Ongoing', priority: 'Low', department: 'Housekeeping', timeAgo: '1h ago', timestamp: DateTime.now().subtract(const Duration(hours: 1))),
+    IssueModel(id: '9', floor: '5', area: 'Room 503', description: 'Bathroom leak', status: 'Ongoing', priority: 'Urgent', department: 'Engineering', timeAgo: '15m ago', timestamp: DateTime.now().subtract(const Duration(minutes: 15))),
+    IssueModel(id: '10', floor: '3', area: 'Corridor', description: 'Light bulb out near elevator', status: 'Ongoing', priority: 'Low', department: 'Engineering', timeAgo: '2h ago', timestamp: DateTime.now().subtract(const Duration(hours: 2))),
+    IssueModel(id: '11', floor: '10', area: 'Pool Bar', description: 'Ice machine broken', status: 'Ongoing', priority: 'Medium', department: 'Engineering', timeAgo: '45m ago', timestamp: DateTime.now().subtract(const Duration(minutes: 45))),
   ];
 
   /// Check if a floor has active issues
@@ -539,20 +548,41 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
     );
   }
 
+  /// Check if this floor has guest rooms (floors 2-10)
+  bool _floorHasRooms(String floorId) {
+    final num = int.tryParse(floorId);
+    return num != null && num >= 2 && num <= 10;
+  }
+
   /// Area grid for floors with named areas
   Widget _buildAreaGrid(FloorModel floor) {
-    // Floors 2-9 have no named areas, show room grid
-    if (floor.areas.isEmpty) {
-      return _buildRoomGrid(floor);
-    }
-
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: floor.areas.map((area) {
-        final hasIssue = _issues.any((i) => i.area == area && i.floor == floor.id && i.isOngoing);
-        return _areaCard(area, hasIssue);
-      }).toList(),
+    final hasRooms = _floorHasRooms(floor.id);
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Named areas section
+        if (floor.areas.isNotEmpty) ...[
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: floor.areas.map((area) {
+              final hasIssue = _issues.any((i) => i.area == area && i.floor == floor.id && i.isOngoing);
+              return _areaCard(area, hasIssue);
+            }).toList(),
+          ),
+        ],
+        // Room grid for floors 2-10
+        if (hasRooms) ...[
+          const SizedBox(height: 20),
+          const Text(
+            'GUEST ROOMS',
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 2, color: Color(0xFF94A3B8)),
+          ),
+          const SizedBox(height: 12),
+          _buildRoomGrid(floor),
+        ],
+      ],
     );
   }
 
@@ -621,41 +651,51 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
     );
   }
 
-  /// Placeholder for floors without area data (2-11)
+  /// Room grid for guest room floors (2-10)
+  /// Each floor has 40 rooms: e.g., 7th floor = 701-740
   Widget _buildRoomGrid(FloorModel floor) {
-    // Show coming soon message for floors 2-11
+    final floorNum = int.tryParse(floor.id);
+    if (floorNum == null) return const SizedBox.shrink();
+
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      children: List.generate(40, (i) {
+        final roomNum = '$floorNum${(i + 1).toString().padLeft(2, '0')}';
+        final hasIssue = _issues.any((iss) => iss.area == 'Room $roomNum' && iss.floor == floor.id && iss.isOngoing);
+        return _roomCard(roomNum, hasIssue);
+      }),
+    );
+  }
+
+  /// Individual room card - compact for mobile grid
+  Widget _roomCard(String roomNum, bool hasIssue) {
     return Container(
-      padding: const EdgeInsets.all(40),
+      width: 52,
+      height: 44,
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-        borderRadius: BorderRadius.circular(20),
+        color: hasIssue ? const Color(0xFFFEF2F2) : const Color(0xFFF0FDF4),
+        border: Border.all(
+          color: hasIssue ? const Color(0xFFFECACA) : const Color(0xFFBBF7D0),
+          width: 1,
+        ),
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
+          Text(
+            roomNum,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: hasIssue ? kRed : kGreen,
+            ),
+          ),
           Icon(
-            Icons.construction_rounded,
-            size: 48,
-            color: Colors.grey.shade300,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'COMING SOON',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 3,
-              color: Colors.grey.shade400,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'This floor will be available in a future update',
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey.shade400,
-            ),
+            hasIssue ? Icons.warning_rounded : Icons.check_circle,
+            size: 10,
+            color: hasIssue ? kRed : kGreen.withOpacity(0.4),
           ),
         ],
       ),
