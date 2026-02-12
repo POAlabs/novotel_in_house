@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../settings_screen.dart';
 import '../../config/routes.dart';
 import '../../models/floor_model.dart';
 import '../../models/issue_model.dart';
@@ -21,6 +23,48 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
 
   // Current view: null = home, otherwise = selected floor id
   String? _selectedFloorId;
+
+  // ScrollController for floor view to auto-scroll to issues
+  final ScrollController _floorViewScrollController = ScrollController();
+
+  // GlobalKeys for room/area cards to scroll to them
+  final Map<String, GlobalKey> _roomKeys = {};
+
+  // Target room to scroll to after navigating to floor
+  String? _scrollToRoom;
+
+  @override
+  void dispose() {
+    _floorViewScrollController.dispose();
+    super.dispose();
+  }
+
+  /// Navigate to floor and scroll to specific room/area
+  void _navigateToFloorAndScrollTo(String floorId, String area) {
+    setState(() {
+      _selectedFloorId = floorId;
+      _scrollToRoom = area;
+    });
+    // Scroll after the frame is built
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollToTargetRoom();
+    });
+  }
+
+  /// Scroll to the target room/area
+  void _scrollToTargetRoom() {
+    if (_scrollToRoom == null) return;
+    final key = _roomKeys[_scrollToRoom];
+    if (key?.currentContext != null) {
+      Scrollable.ensureVisible(
+        key!.currentContext!,
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeInOut,
+        alignment: 0.3,
+      );
+    }
+    _scrollToRoom = null;
+  }
 
   // All hotel floors (B3 to 11)
   // Floors 2-9: Guest rooms only (40 rooms each)
@@ -133,11 +177,16 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
               },
             ),
           ),
-          // Settings / Logout
+          // Settings
           _sidebarIcon(
-            Icons.logout,
+            Icons.settings_outlined,
             isActive: false,
-            onTap: () => Navigator.pushReplacementNamed(context, AppRoutes.signIn),
+            onTap: () {
+               Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const SettingsScreen()),
+              );
+            },
           ),
           const SizedBox(height: 24),
         ],
@@ -250,262 +299,370 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
     );
   }
 
+  // All departments
+  static const List<Map<String, dynamic>> _departments = [
+    {'name': 'Engineering', 'icon': Icons.build_rounded, 'color': Color(0xFF3B82F6)},
+    {'name': 'IT', 'icon': Icons.computer_rounded, 'color': Color(0xFF8B5CF6)},
+    {'name': 'Housekeeping', 'icon': Icons.cleaning_services_rounded, 'color': Color(0xFF10B981)},
+    {'name': 'Front Office', 'icon': Icons.desk_rounded, 'color': Color(0xFFF59E0B)},
+    {'name': 'Security', 'icon': Icons.security_rounded, 'color': Color(0xFFEF4444)},
+    {'name': 'F&B', 'icon': Icons.restaurant_rounded, 'color': Color(0xFFEC4899)},
+  ];
+
+  // Current user's department (would come from auth in real app)
+  final String _currentDepartment = 'Engineering';
+
+  /// Get active issues for the current department
+  List<IssueModel> get _departmentIssues {
+    return _issues.where((i) => i.department == _currentDepartment && i.isOngoing).toList();
+  }
+
+  /// Get active issues grouped by floor
+  Map<String, List<IssueModel>> get _issuesByFloor {
+    final activeIssues = _issues.where((i) => i.isOngoing).toList();
+    final Map<String, List<IssueModel>> grouped = {};
+    for (final issue in activeIssues) {
+      grouped.putIfAbsent(issue.floor, () => []).add(issue);
+    }
+    return grouped;
+  }
+
   // ─── HOME VIEW ──────────────────────────────────────────────────
 
   Widget _buildHomeView() {
+    final activeIssues = _issues.where((i) => i.isOngoing).toList();
+    final floorsAffected = _issuesByFloor.keys.length;
+
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildMetricsRow(),
-          const SizedBox(height: 24),
-          _buildDiagnosticsFeed(),
+          // Department wrapped card
+          _buildDepartmentWrappedCard(),
+          const SizedBox(height: 32),
+          // Active issues by floor header
+          Text(
+            'ACTIVE ISSUES BY FLOOR',
+            style: GoogleFonts.sora(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 3,
+              color: const Color(0xFF94A3B8),
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Issues grouped by floor
+          _buildIssuesByFloorList(),
         ],
       ),
     );
   }
 
-  /// Overview metrics - clearer display for mobile
-  Widget _buildMetricsRow() {
-    final ongoing = _issues.where((i) => i.isOngoing).length;
-    final urgent = _issues.where((i) => i.isOngoing && i.isHighPriority).length;
-    final floorsAffected = _issues.where((i) => i.isOngoing).map((i) => i.floor).toSet().length;
+  Widget _buildDepartmentWrappedCard() {
+    final deptIssues = _departmentIssues;
+    final hasIssues = deptIssues.isNotEmpty;
 
-    return Column(
-      children: [
-        // Main alert banner if there are issues
-        if (ongoing > 0)
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(40),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF64748B).withOpacity(0.08),
+            blurRadius: 32,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Department Name
+          Text(
+            '$_currentDepartment Department',
+            style: GoogleFonts.sora(
+              fontSize: 28, // Increased from 18
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFF64748B),
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 24),
+          // Big Number
+          Text(
+            '${deptIssues.length}',
+            style: GoogleFonts.sora(
+              fontSize: 140,
+              fontWeight: FontWeight.w800,
+              color: hasIssues ? kRed : kGreen,
+              height: 0.9,
+              letterSpacing: -6,
+            ),
+          ),
+          const SizedBox(height: 16),
           Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
-              color: const Color(0xFFFEF2F2),
-              border: Border.all(color: kRed.withOpacity(0.3), width: 2),
-              borderRadius: BorderRadius.circular(16),
+              color: hasIssues ? const Color(0xFFFEF2F2) : const Color(0xFFF0FDF4),
+              borderRadius: BorderRadius.circular(100),
             ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: kRed,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(Icons.warning_rounded, color: Colors.white, size: 20),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '$ongoing Active Issue${ongoing > 1 ? 's' : ''}',
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: kDark),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '$floorsAffected floor${floorsAffected > 1 ? 's' : ''} affected • $urgent urgent',
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade600),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+            child: Text(
+              hasIssues ? 'Active Issues Raised Today' : 'All Clear Today',
+              style: GoogleFonts.sora(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: hasIssues ? kRed : kGreen,
+              ),
             ),
-          )
-        else
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Active issues summary banner
+  Widget _buildActiveIssuesSummary(int totalIssues, int floorsAffected, int urgentCount) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFEF2F2),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFFECACA)),
+      ),
+      child: Row(
+        children: [
           Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            margin: const EdgeInsets.only(bottom: 12),
+            width: 44,
+            height: 44,
             decoration: BoxDecoration(
-              color: const Color(0xFFF0FDF4),
-              border: Border.all(color: kGreen.withOpacity(0.3), width: 2),
-              borderRadius: BorderRadius.circular(16),
+              color: const Color(0xFFFEE2E2),
+              borderRadius: BorderRadius.circular(12),
             ),
-            child: Row(
+            child: const Icon(Icons.warning_rounded, color: kRed, size: 24),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: kGreen,
-                    borderRadius: BorderRadius.circular(12),
+                Text(
+                  '$totalIssues Active Issues',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: kDark,
                   ),
-                  child: const Icon(Icons.check_circle, color: Colors.white, size: 20),
                 ),
-                const SizedBox(width: 14),
-                const Text(
-                  'All Systems Operational',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: kGreen),
+                Text(
+                  '$floorsAffected floors affected  •  $urgentCount urgent',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF64748B),
+                  ),
                 ),
               ],
             ),
           ),
-      ],
+        ],
+      ),
     );
   }
 
-  /// Issues grouped by floor for quick overview
-  Widget _buildDiagnosticsFeed() {
-    // Get floors with ongoing issues
-    final floorsWithIssues = <String, List<IssueModel>>{};
-    for (final issue in _issues.where((i) => i.isOngoing)) {
-      floorsWithIssues.putIfAbsent(issue.floor, () => []).add(issue);
+  /// Small report button for header row
+  Widget _buildSmallReportButton() {
+    return ElevatedButton.icon(
+      onPressed: () {},
+      icon: const Icon(Icons.add, size: 16),
+      label: const Text('REPORT', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 1)),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: kRed,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        elevation: 0,
+      ),
+    );
+  }
+
+  /// Issues grouped by floor list
+  Widget _buildIssuesByFloorList() {
+    final issuesByFloor = _issuesByFloor;
+    if (issuesByFloor.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            children: [
+              Icon(Icons.check_circle_outline, size: 48, color: kGreen.withOpacity(0.5)),
+              const SizedBox(height: 12),
+              const Text(
+                'No active issues',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
+              ),
+            ],
+          ),
+        ),
+      );
     }
 
+    // Sort floors: B3, B2, B1, G, 1, 2, ..., 11
+    final sortedFloors = issuesByFloor.keys.toList()..sort((a, b) {
+      int floorValue(String f) {
+        if (f == 'G') return 0;
+        if (f.startsWith('B')) return -int.parse(f.substring(1));
+        return int.tryParse(f) ?? 0;
+      }
+      return floorValue(a).compareTo(floorValue(b));
+    });
+
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Section header
-        Row(
-          children: [
-            const Text(
-              'ACTIVE ISSUES BY FLOOR',
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 4, color: Color(0xFF94A3B8)),
-            ),
-            const Spacer(),
-            ElevatedButton(
-              onPressed: () {},
-              style: ElevatedButton.styleFrom(
-                backgroundColor: kDark,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                elevation: 0,
-              ),
-              child: const Text('+ REPORT ISSUE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1)),
-            ),
-          ],
-        ),
-        const SizedBox(height: 20),
-        // Floor cards with issues
-        if (floorsWithIssues.isEmpty)
-          Container(
-            padding: const EdgeInsets.all(32),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF0FDF4),
-              border: Border.all(color: const Color(0xFFBBF7D0)),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.check_circle, color: kGreen, size: 24),
-                const SizedBox(width: 12),
-                const Text(
-                  'All systems operational',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: kGreen),
-                ),
-              ],
-            ),
-          )
-        else
-          ...floorsWithIssues.entries.map((entry) => _buildFloorIssueCard(entry.key, entry.value)),
-      ],
+      children: sortedFloors.map((floorId) {
+        final floorIssues = issuesByFloor[floorId]!;
+        return _buildFloorIssueCard(floorId, floorIssues);
+      }).toList(),
     );
   }
 
-  /// Floor card showing all issues for that floor
+  /// Floor issue card showing floor with its issues
   Widget _buildFloorIssueCard(String floorId, List<IssueModel> issues) {
     final floor = _floors.firstWhere((f) => f.id == floorId, orElse: () => FloorModel(id: floorId, name: 'Floor $floorId', areas: []));
-    final urgentCount = issues.where((i) => i.isHighPriority).length;
+    final floorName = _getFloorDisplayName(floorId);
 
     return GestureDetector(
       onTap: () => setState(() => _selectedFloorId = floorId),
       child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
+        margin: const EdgeInsets.only(bottom: 16),
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: const Color(0xFFFEF2F2),
-          border: Border.all(color: const Color(0xFFFECACA), width: 2),
-          borderRadius: BorderRadius.circular(20),
+          color: Colors.white, // Changed from 0xFFFEF2F2 to white
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: const Color(0xFFFECACA), width: 1.5),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Floor header with issue count
+            // Floor header
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  width: 48,
+                  height: 48,
                   decoration: BoxDecoration(
                     color: kRed,
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(12),
                   ),
+                  child: Center(
+                    child: Text(
+                      floorId,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
                   child: Text(
-                    floorId,
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.white),
+                    floorName.toUpperCase(),
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.5,
+                      color: kDark,
+                    ),
                   ),
                 ),
-                const SizedBox(width: 12),
-                Text(
-                  floor.name.toUpperCase(),
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, letterSpacing: 1, color: kDark),
-                ),
-                const Spacer(),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(8),
+                    color: const Color(0xFFFEE2E2),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: const Color(0xFFFECACA)),
                   ),
                   child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.warning_rounded, size: 14, color: kRed),
-                      const SizedBox(width: 4),
+                      const Icon(Icons.warning_rounded, size: 14, color: kRed),
+                      const SizedBox(width: 6),
                       Text(
-                        '${issues.length} issue${issues.length > 1 ? 's' : ''}',
-                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: kRed),
+                        '${issues.length}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: kRed,
+                        ),
                       ),
                     ],
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            // Issue list
-            ...issues.map((issue) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                children: [
-                  Container(
-                    width: 6,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      color: issue.isHighPriority ? kRed : const Color(0xFFF97316),
-                      shape: BoxShape.circle,
+            const SizedBox(height: 16),
+            // Issue previews - each tappable to scroll to that issue
+            ...issues.take(2).map((issue) => GestureDetector(
+              onTap: () => _navigateToFloorAndScrollTo(floorId, issue.area),
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 10,
+                      height: 10,
+                      decoration: const BoxDecoration(
+                        color: kRed,
+                        shape: BoxShape.circle,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      issue.description,
-                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: kDark),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        issue.description,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: kDark,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    issue.area,
-                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.grey.shade500),
-                  ),
-                ],
+                    const SizedBox(width: 12),
+                    Text(
+                      issue.area,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF64748B),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             )),
-            // Tap to view hint
             const SizedBox(height: 8),
+            // Tap to view floor - no line separator
             Row(
-              mainAxisAlignment: MainAxisAlignment.end,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
                   'TAP TO VIEW FLOOR',
-                  style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, letterSpacing: 1, color: kRed.withOpacity(0.6)),
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 2,
+                    color: kRed.withOpacity(0.7),
+                  ),
                 ),
-                const SizedBox(width: 4),
-                Icon(Icons.arrow_forward, size: 12, color: kRed.withOpacity(0.6)),
+                const SizedBox(width: 6),
+                Icon(Icons.arrow_forward, size: 16, color: kRed.withOpacity(0.7)),
               ],
             ),
           ],
@@ -514,7 +671,24 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
     );
   }
 
-  // ─── FLOOR VIEW (inline, not a separate screen) ─────────────────
+  /// Get display name for floor
+  String _getFloorDisplayName(String floorId) {
+    switch (floorId) {
+      case 'G': return 'Ground Floor';
+      case 'B1': return 'Basement 1';
+      case 'B2': return 'Basement 2';
+      case 'B3': return 'Basement 3';
+      case '1': return '1st Floor';
+      case '2': return '2nd Floor';
+      case '3': return '3rd Floor';
+      default:
+        final num = int.tryParse(floorId);
+        if (num != null) return '${num}th Floor';
+        return 'Floor $floorId';
+    }
+  }
+
+  // ─── FLOOR VIEW
 
   Widget _buildFloorView() {
     final floor = _selectedFloor!;
@@ -525,12 +699,41 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Floor title - smaller for mobile
-          Text(
-            floor.name,
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: kDark),
+          // Floor title + Report Button
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                floor.name,
+                style: GoogleFonts.sora(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800,
+                  color: kDark,
+                ),
+              ),
+              // Redesigned Report Button
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () {
+                    // TODO: Show report dialog
+                  },
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      border: Border.all(color: Colors.black, width: 2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.add, color: Colors.black, size: 24),
+                  ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
           // Area grid (or coming soon for numbered floors)
           _buildAreaGrid(floor),
           // Active issues for this floor
@@ -588,7 +791,11 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
 
   /// Individual area card - compact size
   Widget _areaCard(String area, bool hasIssue) {
+    // Register GlobalKey for this area
+    _roomKeys.putIfAbsent(area, () => GlobalKey());
+    
     return Container(
+      key: _roomKeys[area],
       width: 120,
       height: 72,
       padding: const EdgeInsets.all(10),
@@ -670,7 +877,12 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
 
   /// Individual room card - compact for mobile grid
   Widget _roomCard(String roomNum, bool hasIssue) {
+    // Register GlobalKey for this room (area name is "Room XXX")
+    final areaName = 'Room $roomNum';
+    _roomKeys.putIfAbsent(areaName, () => GlobalKey());
+    
     return Container(
+      key: _roomKeys[areaName],
       width: 52,
       height: 44,
       decoration: BoxDecoration(
