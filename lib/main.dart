@@ -1,8 +1,27 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 import 'config/routes.dart';
+import 'services/auth_service.dart';
 
 /// Main entry point for Novotel Westlands In House app
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // Try to initialize Firebase
+  // If Firebase is not configured, app will run in demo mode
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    AuthService.firebaseInitialized = true;
+    debugPrint('Firebase initialized successfully');
+  } catch (e) {
+    debugPrint('Firebase initialization failed: $e');
+    debugPrint('Running in demo mode with dummy accounts');
+    AuthService.firebaseInitialized = false;
+  }
+  
   runApp(const NovotelInHouseApp());
 }
 

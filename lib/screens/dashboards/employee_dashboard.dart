@@ -4,6 +4,8 @@ import '../settings_screen.dart';
 import '../../config/routes.dart';
 import '../../models/floor_model.dart';
 import '../../models/issue_model.dart';
+import '../../models/user_model.dart';
+import '../../services/auth_service.dart';
 
 /// Employee dashboard
 /// Floor diagnostic system with persistent sidebar navigation
@@ -23,6 +25,9 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
 
   // Current view: null = home, otherwise = selected floor id
   String? _selectedFloorId;
+
+  // Get current user from auth service
+  UserModel? get _currentUser => AuthService().currentUser;
 
   // ScrollController for floor view to auto-scroll to issues
   final ScrollController _floorViewScrollController = ScrollController();
@@ -184,7 +189,9 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
             onTap: () {
                Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const SettingsScreen()),
+                MaterialPageRoute(
+                  builder: (context) => SettingsScreen(currentUser: _currentUser),
+                ),
               );
             },
           ),
@@ -299,18 +306,8 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
     );
   }
 
-  // All departments
-  static const List<Map<String, dynamic>> _departments = [
-    {'name': 'Engineering', 'icon': Icons.build_rounded, 'color': Color(0xFF3B82F6)},
-    {'name': 'IT', 'icon': Icons.computer_rounded, 'color': Color(0xFF8B5CF6)},
-    {'name': 'Housekeeping', 'icon': Icons.cleaning_services_rounded, 'color': Color(0xFF10B981)},
-    {'name': 'Front Office', 'icon': Icons.desk_rounded, 'color': Color(0xFFF59E0B)},
-    {'name': 'Security', 'icon': Icons.security_rounded, 'color': Color(0xFFEF4444)},
-    {'name': 'F&B', 'icon': Icons.restaurant_rounded, 'color': Color(0xFFEC4899)},
-  ];
-
-  // Current user's department (would come from auth in real app)
-  final String _currentDepartment = 'Engineering';
+  // Get current user's department from auth
+  String get _currentDepartment => _currentUser?.department ?? 'Engineering';
 
   /// Get active issues for the current department
   List<IssueModel> get _departmentIssues {
@@ -361,60 +358,55 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
 
   Widget _buildDepartmentWrappedCard() {
     final deptIssues = _departmentIssues;
-    final hasIssues = deptIssues.isNotEmpty;
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
+      padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(40),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF64748B).withOpacity(0.08),
-            blurRadius: 32,
-            offset: const Offset(0, 12),
-          ),
-        ],
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(24),
       ),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Department Name
           Text(
-            '$_currentDepartment Department',
+            '$_currentDepartment\nDepartment',
             style: GoogleFonts.sora(
-              fontSize: 28, // Increased from 18
-              fontWeight: FontWeight.w700,
-              color: const Color(0xFF64748B),
-              letterSpacing: 0.5,
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              color: kDark,
+              height: 1.2,
             ),
           ),
           const SizedBox(height: 24),
-          // Big Number
-          Text(
-            '${deptIssues.length}',
-            style: GoogleFonts.sora(
-              fontSize: 140,
-              fontWeight: FontWeight.w800,
-              color: hasIssues ? kRed : kGreen,
-              height: 0.9,
-              letterSpacing: -6,
+          // Large issue count
+          Center(
+            child: Text(
+              '${deptIssues.length}',
+              style: GoogleFonts.sora(
+                fontSize: 80,
+                fontWeight: FontWeight.w800,
+                color: kRed,
+              ),
             ),
           ),
           const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: hasIssues ? const Color(0xFFFEF2F2) : const Color(0xFFF0FDF4),
-              borderRadius: BorderRadius.circular(100),
-            ),
-            child: Text(
-              hasIssues ? 'Active Issues Raised Today' : 'All Clear Today',
-              style: GoogleFonts.sora(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: hasIssues ? kRed : kGreen,
+          // Active issues label
+          Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              decoration: BoxDecoration(
+                color: kRed.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: Text(
+                'Active Issues Raised Today',
+                style: GoogleFonts.sora(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: kRed,
+                ),
               ),
             ),
           ),

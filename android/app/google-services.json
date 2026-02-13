@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "226271839103",
+    "project_id": "novotel-westlands-in-house-app",
+    "storage_bucket": "novotel-westlands-in-house-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:226271839103:android:647858d14db91612d4504a",
+        "android_client_info": {
+          "package_name": "com.example.novotel_in_house"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDvZ5l2ChaMO2AkgNqYrCcOWCh0q4m2v-4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../services/auth_service.dart';
 import '../../config/routes.dart';
+import '../../config/departments.dart';
 
 /// Sign-in page for user authentication
 class SignInPage extends StatefulWidget {
@@ -44,23 +45,25 @@ class _SignInPageState extends State<SignInPage> {
     setState(() => _isLoading = true);
 
     try {
-      final role = await _authService.signInWithEmail(
+      final user = await _authService.signInWithEmail(
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
 
       if (!mounted) return;
 
+      // Route based on user role
       String route;
-      switch (role) {
-        case 'admin':
+      switch (user.role) {
+        case UserRole.systemAdmin:
           route = AppRoutes.adminDashboard;
           break;
-        case 'manager':
+        case UserRole.manager:
           route = AppRoutes.managerDashboard;
           break;
-        default:
+        case UserRole.staff:
           route = AppRoutes.employeeDashboard;
+          break;
       }
 
       Navigator.pushReplacementNamed(context, route);
@@ -68,7 +71,7 @@ class _SignInPageState extends State<SignInPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Sign in failed: \${e.toString()}'),
+            content: Text(e.toString().replaceAll('Exception: ', '')),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -336,7 +339,7 @@ class _SignInPageState extends State<SignInPage> {
           const SizedBox(height: 6),
           _credentialRow('Manager', 'manager@novotel.com'),
           const SizedBox(height: 6),
-          _credentialRow('Employee', 'employee@novotel.com'),
+          _credentialRow('Staff', 'staff@novotel.com'),
           const SizedBox(height: 8),
           Text(
             'Password: password123',
