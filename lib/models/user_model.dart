@@ -1,8 +1,9 @@
+//this file is about the user profile 
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../config/departments.dart';
 
-/// User model for the application
-/// Stored in Firestore 'users' collection
+// we store the users in user model 
 class UserModel {
   final String uid;
   final String email;

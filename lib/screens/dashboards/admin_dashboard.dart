@@ -1,3 +1,11 @@
+/*
+
+ the screen the admin sees when they login, the admin can see everything, all departments issues
+ they can manage users, add delete, deactivate, and also see the debug logs based on the debug messages
+ we have added in the codebase
+
+*/
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../settings_screen.dart';
@@ -9,8 +17,8 @@ import '../../services/issue_service.dart';
 import '../../config/departments.dart';
 import '../admin/user_management_screen.dart';
 
-/// System Admin dashboard
-/// Full access: view all issues from ALL departments, manage users, system settings
+// System Admin dashboard
+
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
 

@@ -1,5 +1,5 @@
-/// Department constants for the hotel
-/// These match the departments defined in the planning document
+
+// In this file we define the various departments in novotel westlands
 
 class Departments {
   // Prevent instantiation

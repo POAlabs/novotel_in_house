@@ -480,7 +480,7 @@ class _AddUserScreenState extends State<AddUserScreen> {
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
       child: DropdownButtonFormField<T>(
-        value: value,
+        initialValue: value,
         items: items,
         onChanged: onChanged,
         style: GoogleFonts.sora(fontSize: 14, color: kDark),

@@ -4,12 +4,12 @@ import 'firebase_options.dart';
 import 'config/routes.dart';
 import 'services/auth_service.dart';
 
-/// Main entry point for Novotel Westlands In House app
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Try to initialize Firebase
-  // If Firebase is not configured, app will run in demo mode
+  //initialize firebase, 
+  //used the dummy for UI for now 
+  //TODO remove the dummy demo mode 
   try {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,

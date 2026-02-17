@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../settings_screen.dart';
-import '../../models/floor_model.dart';
 import '../../models/issue_model.dart';
 import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/issue_service.dart';
-import '../../config/departments.dart';
 
 /// Manager dashboard
 /// Shows 3 department cards - tap to view department issues
