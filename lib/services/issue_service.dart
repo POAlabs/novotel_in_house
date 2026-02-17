@@ -19,9 +19,9 @@ class IssueService {
   factory IssueService() => _instance;
   IssueService._internal();
 
-  /// Create a new issue
-  /// Returns the created issue ID
-  Future<String> createIssue({
+  // Creating of a new issue
+  
+    Future<String> createIssue({
     required String floor,
     required String area,
     required String description,

@@ -27,7 +27,7 @@ class AdminDashboard extends StatefulWidget {
 }
 
 class _AdminDashboardState extends State<AdminDashboard> {
-  // Design system colors
+  
   static const Color kBg = Color(0xFFF8FAFC);
   static const Color kDark = Color(0xFF0F172A);
   static const Color kGrey = Color(0xFF64748B);
@@ -50,8 +50,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
   // All hotel floors
   final List<FloorModel> _floors = const [
-    FloorModel(id: '11', name: '11th Floor', areas: ['TnT', 'Kitchen', 'Corridor']),
-    FloorModel(id: '10', name: '10th Floor', areas: ['Kitchen', 'Executive Lounge', 'Pool Bar', 'Swimming Pool', 'Corridor']),
+    FloorModel(id: '11', name: '11th Floor', areas: ['TnT','Corridor', 'Pool Bar']),
+    FloorModel(id: '10', name: '10th Floor', areas: ['Kitchen', 'Executive Lounge', 'Corridor']),
     FloorModel(id: '9', name: '9th Floor', areas: ['Corridor']),
     FloorModel(id: '8', name: '8th Floor', areas: ['Corridor']),
     FloorModel(id: '7', name: '7th Floor', areas: ['Corridor']),
@@ -59,8 +59,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
     FloorModel(id: '5', name: '5th Floor', areas: ['Corridor']),
     FloorModel(id: '4', name: '4th Floor', areas: ['Corridor']),
     FloorModel(id: '3', name: '3rd Floor', areas: ['Corridor']),
-    FloorModel(id: '2', name: '2nd Floor', areas: ['Corridor']),
-    FloorModel(id: '1', name: '1st Floor', areas: ['Meeting Rooms', 'Washrooms', 'Spa', 'Gym', 'Corridor']),
+    FloorModel(id: '2', name: '2nd Floor', areas: ['Corridor', 'Twiga']),
+    FloorModel(id: '1', name: '1st Floor', areas: ['Tembo', 'Kasuku', 'Mbuni', 'Nyati', 'Mamba', 'PDR', 'Tausi', 'Njiwa', 'Kifaru', 'Chui', 'Tai', 'Washrooms', 'Spa', 'Gym', 'Corridor']),
     FloorModel(id: 'G', name: 'Ground Floor', areas: ["Gemma's", 'Main Kitchen', 'Social Hub', 'Front Office', 'Simba Ballroom', 'Corridor']),
     FloorModel(id: 'B1', name: 'Basement 1', areas: ['Back Office', 'Finance', 'Staff Cafeteria', 'Parking', 'Corridor']),
     FloorModel(id: 'B2', name: 'Basement 2', areas: ['Parking', 'Bakery', 'Control Room', 'Laundry', 'Corridor']),

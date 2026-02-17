@@ -50,7 +50,7 @@ class IssueModel {
   /// Check if issue is high priority
   bool get isHighPriority => priority == 'Urgent' || priority == 'High';
 
-  /// Get human-readable time ago string
+  ///Convert to smart time
   String get timeAgo {
     final now = DateTime.now();
     final difference = now.difference(createdAt);
