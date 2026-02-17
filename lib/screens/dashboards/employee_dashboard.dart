@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../settings_screen.dart';
+import '../report_issue/report_issue_flow.dart';
 import '../../config/routes.dart';
 import '../../models/floor_model.dart';
 import '../../models/issue_model.dart';
 import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
+import '../../services/issue_service.dart';
 
 /// Employee dashboard
 /// Floor diagnostic system with persistent sidebar navigation
@@ -28,6 +30,12 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
 
   // Get current user from auth service
   UserModel? get _currentUser => AuthService().currentUser;
+
+  // Issue service for Firebase data
+  final IssueService _issueService = IssueService();
+
+  // Live issues from Firebase
+  List<IssueModel> _issues = [];
 
   // ScrollController for floor view to auto-scroll to issues
   final ScrollController _floorViewScrollController = ScrollController();
@@ -71,6 +79,18 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
     _scrollToRoom = null;
   }
 
+  /// Open the report issue flow
+  void _openReportIssueFlow() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ReportIssueFlow(
+          preselectedFloor: _selectedFloorId,
+        ),
+      ),
+    );
+  }
+
   // All hotel floors (B3 to 11)
   // Floors 2-9: Guest rooms only (40 rooms each)
   // Floor 10: Kitchen, Executive Lounge, Pool Bar, Swimming Pool + Guest Rooms
@@ -91,22 +111,6 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
     FloorModel(id: 'B1', name: 'Basement 1', areas: ['Back Office', 'Finance', 'Staff Cafeteria', 'Parking', 'Corridor']),
     FloorModel(id: 'B2', name: 'Basement 2', areas: ['Parking', 'Bakery', 'Control Room', 'Laundry', 'Corridor']),
     FloorModel(id: 'B3', name: 'Basement 3', areas: ['Engineering Workshop', 'Stores', 'Parking', 'Corridor']),
-  ];
-
-  // Mock issues for development
-  final List<IssueModel> _issues = [
-    IssueModel(id: '1', floor: 'B3', area: 'Engineering Workshop', description: 'Main HVAC Compressor Leak', status: 'Ongoing', priority: 'Urgent', department: 'Engineering', timeAgo: '45m ago', timestamp: DateTime.now().subtract(const Duration(minutes: 45))),
-    IssueModel(id: '2', floor: 'G', area: 'Front Office', description: 'Check-in Kiosk offline', status: 'Completed', priority: 'Medium', department: 'IT', timeAgo: '2h ago', timestamp: DateTime.now().subtract(const Duration(hours: 2))),
-    IssueModel(id: '3', floor: '1', area: 'Gym', description: 'Equipment safety inspection due', status: 'Ongoing', priority: 'High', department: 'Engineering', timeAgo: '1h ago', timestamp: DateTime.now().subtract(const Duration(hours: 1))),
-    IssueModel(id: '4', floor: 'B2', area: 'Control Room', description: 'Security camera offline', status: 'Ongoing', priority: 'High', department: 'Security', timeAgo: '12m ago', timestamp: DateTime.now().subtract(const Duration(minutes: 12))),
-    IssueModel(id: '5', floor: 'G', area: 'Main Kitchen', description: 'Freezer Temp Drop (-4C)', status: 'Ongoing', priority: 'High', department: 'Engineering', timeAgo: '1h ago', timestamp: DateTime.now().subtract(const Duration(hours: 1))),
-    IssueModel(id: '6', floor: 'B1', area: 'Parking', description: 'Parking gate malfunction', status: 'Ongoing', priority: 'Low', department: 'Engineering', timeAgo: '3h ago', timestamp: DateTime.now().subtract(const Duration(hours: 3))),
-    // Room issues for testing
-    IssueModel(id: '7', floor: '7', area: 'Room 712', description: 'AC not cooling', status: 'Ongoing', priority: 'High', department: 'Engineering', timeAgo: '30m ago', timestamp: DateTime.now().subtract(const Duration(minutes: 30))),
-    IssueModel(id: '8', floor: '7', area: 'Room 725', description: 'TV remote missing', status: 'Ongoing', priority: 'Low', department: 'Housekeeping', timeAgo: '1h ago', timestamp: DateTime.now().subtract(const Duration(hours: 1))),
-    IssueModel(id: '9', floor: '5', area: 'Room 503', description: 'Bathroom leak', status: 'Ongoing', priority: 'Urgent', department: 'Engineering', timeAgo: '15m ago', timestamp: DateTime.now().subtract(const Duration(minutes: 15))),
-    IssueModel(id: '10', floor: '3', area: 'Corridor', description: 'Light bulb out near elevator', status: 'Ongoing', priority: 'Low', department: 'Engineering', timeAgo: '2h ago', timestamp: DateTime.now().subtract(const Duration(hours: 2))),
-    IssueModel(id: '11', floor: '10', area: 'Pool Bar', description: 'Ice machine broken', status: 'Ongoing', priority: 'Medium', department: 'Engineering', timeAgo: '45m ago', timestamp: DateTime.now().subtract(const Duration(minutes: 45))),
   ];
 
   /// Check if a floor has active issues
@@ -131,17 +135,27 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
     return Scaffold(
       backgroundColor: kBg,
       body: SafeArea(
-        child: Row(
-          children: [
-            // Persistent sidebar
-            _buildSidebar(),
-            // Main viewport switches between home and floor view
-            Expanded(
-              child: _selectedFloorId == null
-                  ? _buildHomeView()
-                  : _buildFloorView(),
-            ),
-          ],
+        child: StreamBuilder<List<IssueModel>>(
+          stream: _issueService.getAllOngoingIssues(),
+          builder: (context, snapshot) {
+            // Update local issues list when data changes
+            if (snapshot.hasData) {
+              _issues = snapshot.data!;
+            }
+            
+            return Row(
+              children: [
+                // Persistent sidebar
+                _buildSidebar(),
+                // Main viewport switches between home and floor view
+                Expanded(
+                  child: _selectedFloorId == null
+                      ? _buildHomeView()
+                      : _buildFloorView(),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -365,6 +379,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
       decoration: BoxDecoration(
         color: const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -703,13 +718,11 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
                   color: kDark,
                 ),
               ),
-              // Redesigned Report Button
+              // Report Issue Button
               Material(
                 color: Colors.transparent,
                 child: InkWell(
-                  onTap: () {
-                    // TODO: Show report dialog
-                  },
+                  onTap: () => _openReportIssueFlow(),
                   borderRadius: BorderRadius.circular(12),
                   child: Container(
                     width: 48,

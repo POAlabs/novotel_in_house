@@ -5,6 +5,7 @@ import '../../models/floor_model.dart';
 import '../../models/issue_model.dart';
 import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
+import '../../services/issue_service.dart';
 import '../../config/departments.dart';
 import '../admin/user_management_screen.dart';
 
@@ -33,6 +34,12 @@ class _AdminDashboardState extends State<AdminDashboard> {
   // Get current user from auth service
   UserModel? get _currentUser => AuthService().currentUser;
 
+  // Issue service for Firebase data
+  final IssueService _issueService = IssueService();
+
+  // Live issues from Firebase
+  List<IssueModel> _issues = [];
+
   // All hotel floors
   final List<FloorModel> _floors = const [
     FloorModel(id: '11', name: '11th Floor', areas: ['TnT', 'Kitchen', 'Corridor']),
@@ -50,21 +57,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
     FloorModel(id: 'B1', name: 'Basement 1', areas: ['Back Office', 'Finance', 'Staff Cafeteria', 'Parking', 'Corridor']),
     FloorModel(id: 'B2', name: 'Basement 2', areas: ['Parking', 'Bakery', 'Control Room', 'Laundry', 'Corridor']),
     FloorModel(id: 'B3', name: 'Basement 3', areas: ['Engineering Workshop', 'Stores', 'Parking', 'Corridor']),
-  ];
-
-  // Mock issues - Admin sees ALL issues from ALL departments
-  final List<IssueModel> _issues = [
-    IssueModel(id: '1', floor: 'B3', area: 'Engineering Workshop', description: 'Main HVAC Compressor Leak', status: 'Ongoing', priority: 'Urgent', department: 'Engineering', timeAgo: '45m ago', timestamp: DateTime.now().subtract(const Duration(minutes: 45))),
-    IssueModel(id: '2', floor: 'G', area: 'Front Office', description: 'Check-in Kiosk offline', status: 'Completed', priority: 'Medium', department: 'IT', timeAgo: '2h ago', timestamp: DateTime.now().subtract(const Duration(hours: 2))),
-    IssueModel(id: '3', floor: '1', area: 'Gym', description: 'Equipment safety inspection due', status: 'Ongoing', priority: 'High', department: 'Engineering', timeAgo: '1h ago', timestamp: DateTime.now().subtract(const Duration(hours: 1))),
-    IssueModel(id: '4', floor: 'B2', area: 'Control Room', description: 'Security camera offline', status: 'Ongoing', priority: 'High', department: 'Security', timeAgo: '12m ago', timestamp: DateTime.now().subtract(const Duration(minutes: 12))),
-    IssueModel(id: '5', floor: 'G', area: 'Main Kitchen', description: 'Freezer Temp Drop (-4C)', status: 'Ongoing', priority: 'High', department: 'Engineering', timeAgo: '1h ago', timestamp: DateTime.now().subtract(const Duration(hours: 1))),
-    IssueModel(id: '6', floor: 'B1', area: 'Parking', description: 'Parking gate malfunction', status: 'Ongoing', priority: 'Low', department: 'Engineering', timeAgo: '3h ago', timestamp: DateTime.now().subtract(const Duration(hours: 3))),
-    IssueModel(id: '7', floor: '7', area: 'Room 712', description: 'AC not cooling', status: 'Ongoing', priority: 'High', department: 'Engineering', timeAgo: '30m ago', timestamp: DateTime.now().subtract(const Duration(minutes: 30))),
-    IssueModel(id: '8', floor: '7', area: 'Room 725', description: 'TV remote missing', status: 'Ongoing', priority: 'Low', department: 'Housekeeping', timeAgo: '1h ago', timestamp: DateTime.now().subtract(const Duration(hours: 1))),
-    IssueModel(id: '9', floor: '5', area: 'Room 503', description: 'Bathroom leak', status: 'Ongoing', priority: 'Urgent', department: 'Engineering', timeAgo: '15m ago', timestamp: DateTime.now().subtract(const Duration(minutes: 15))),
-    IssueModel(id: '10', floor: '3', area: 'Corridor', description: 'Light bulb out near elevator', status: 'Ongoing', priority: 'Low', department: 'Engineering', timeAgo: '2h ago', timestamp: DateTime.now().subtract(const Duration(hours: 2))),
-    IssueModel(id: '11', floor: '10', area: 'Pool Bar', description: 'Ice machine broken', status: 'Ongoing', priority: 'Medium', department: 'Engineering', timeAgo: '45m ago', timestamp: DateTime.now().subtract(const Duration(minutes: 45))),
   ];
 
   bool _hasIssue(String floorId) {
@@ -121,17 +113,26 @@ class _AdminDashboardState extends State<AdminDashboard> {
     return Scaffold(
       backgroundColor: kBg,
       body: SafeArea(
-        child: Row(
-          children: [
-            _buildSidebar(),
-            Expanded(
-              child: _selectedView == null
-                  ? _buildHomeView()
-                  : _isViewingDepartment
-                      ? _buildDepartmentView()
-                      : _buildFloorView(),
-            ),
-          ],
+        child: StreamBuilder<List<IssueModel>>(
+          stream: _issueService.getAllOngoingIssues(),
+          builder: (context, snapshot) {
+            if (snapshot.hasData) {
+              _issues = snapshot.data!;
+            }
+            
+            return Row(
+              children: [
+                _buildSidebar(),
+                Expanded(
+                  child: _selectedView == null
+                      ? _buildHomeView()
+                      : _isViewingDepartment
+                          ? _buildDepartmentView()
+                          : _buildFloorView(),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -923,6 +924,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
         decoration: BoxDecoration(
           color: const Color(0xFFF8FAFC),
           borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
