@@ -16,6 +16,7 @@ import '../../services/auth_service.dart';
 import '../../services/issue_service.dart';
 import '../../config/departments.dart';
 import '../admin/user_management_screen.dart';
+import '../../widgets/issue_action_sheets.dart';
 
 // System Admin dashboard
 
@@ -867,7 +868,15 @@ class _AdminDashboardState extends State<AdminDashboard> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: () {},
+              onPressed: () {
+                if (_currentUser != null) {
+                  showTakeActionSheet(
+                    context: context,
+                    issue: issue,
+                    currentUser: _currentUser!,
+                  );
+                }
+              },
               style: ElevatedButton.styleFrom(
                 backgroundColor: kDark,
                 foregroundColor: Colors.white,

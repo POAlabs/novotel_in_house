@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../models/issue_model.dart';
+import '../models/issue_comment_model.dart';
 import '../models/user_model.dart';
 import 'debug_log_service.dart';
 
@@ -290,13 +291,46 @@ class IssueService {
     required UserModel resolver,
     required String resolutionNotes,
   }) async {
-    await _issuesCollection.doc(issueId).update({
-      'status': 'Completed',
-      'resolvedAt': Timestamp.now(),
-      'resolvedBy': resolver.uid,
-      'resolvedByName': resolver.displayName,
-      'resolutionNotes': resolutionNotes,
-    });
+    debugPrint('📝 [ISSUE_SERVICE] markAsResolved($issueId) called');
+    _debugLog.addLog(
+      'ISSUE_SERVICE',
+      'Marking issue as resolved',
+      data: {'issueId': issueId, 'resolverName': resolver.displayName},
+    );
+    
+    try {
+      await _issuesCollection.doc(issueId).update({
+        'status': 'Completed',
+        'resolvedAt': Timestamp.now(),
+        'resolvedBy': resolver.uid,
+        'resolvedByName': resolver.displayName,
+        'resolutionNotes': resolutionNotes,
+      });
+      
+      // Add a system comment for the resolution
+      await addComment(
+        issueId: issueId,
+        comment: 'Issue resolved: $resolutionNotes',
+        author: resolver,
+        type: 'resolved',
+      );
+      
+      debugPrint('✅ [ISSUE_SERVICE] Issue marked as resolved');
+      _debugLog.addLog(
+        'ISSUE_SERVICE',
+        'Issue resolved successfully',
+        data: {'issueId': issueId},
+      );
+    } catch (e, stackTrace) {
+      debugPrint('❌ [ISSUE_SERVICE] markAsResolved ERROR: $e');
+      _debugLog.addLog(
+        'ISSUE_SERVICE',
+        'Error marking issue as resolved: $e',
+        data: {'issueId': issueId, 'stackTrace': stackTrace.toString()},
+        isError: true,
+      );
+      rethrow;
+    }
   }
 
   /// Update issue priority
@@ -304,19 +338,100 @@ class IssueService {
     required String issueId,
     required String priority,
   }) async {
-    await _issuesCollection.doc(issueId).update({
-      'priority': priority,
-    });
+    debugPrint('📝 [ISSUE_SERVICE] updatePriority($issueId, $priority) called');
+    _debugLog.addLog(
+      'ISSUE_SERVICE',
+      'Updating issue priority',
+      data: {'issueId': issueId, 'newPriority': priority},
+    );
+    
+    try {
+      await _issuesCollection.doc(issueId).update({
+        'priority': priority,
+      });
+      
+      debugPrint('✅ [ISSUE_SERVICE] Priority updated');
+      _debugLog.addLog(
+        'ISSUE_SERVICE',
+        'Priority updated successfully',
+        data: {'issueId': issueId, 'priority': priority},
+      );
+    } catch (e, stackTrace) {
+      debugPrint('❌ [ISSUE_SERVICE] updatePriority ERROR: $e');
+      _debugLog.addLog(
+        'ISSUE_SERVICE',
+        'Error updating priority: $e',
+        data: {'issueId': issueId, 'stackTrace': stackTrace.toString()},
+        isError: true,
+      );
+      rethrow;
+    }
   }
 
-  /// Reassign issue to different department
+  /// Reassign issue to different department (with optional priority change)
   Future<void> reassignDepartment({
     required String issueId,
     required String newDepartment,
+    String? newPriority,
+    String? note,
+    UserModel? reassignedBy,
   }) async {
-    await _issuesCollection.doc(issueId).update({
-      'department': newDepartment,
-    });
+    debugPrint('📝 [ISSUE_SERVICE] reassignDepartment($issueId, $newDepartment) called');
+    _debugLog.addLog(
+      'ISSUE_SERVICE',
+      'Reassigning issue to department',
+      data: {
+        'issueId': issueId,
+        'newDepartment': newDepartment,
+        'newPriority': newPriority,
+      },
+    );
+    
+    try {
+      final updates = <String, dynamic>{
+        'department': newDepartment,
+      };
+      
+      if (newPriority != null) {
+        updates['priority'] = newPriority;
+      }
+      
+      await _issuesCollection.doc(issueId).update(updates);
+      
+      // Add a system comment for the reassignment
+      if (reassignedBy != null) {
+        String commentText = 'Reassigned to $newDepartment';
+        if (newPriority != null) {
+          commentText += ' with priority changed to $newPriority';
+        }
+        if (note != null && note.isNotEmpty) {
+          commentText += '. Note: $note';
+        }
+        
+        await addComment(
+          issueId: issueId,
+          comment: commentText,
+          author: reassignedBy,
+          type: 'reassign',
+        );
+      }
+      
+      debugPrint('✅ [ISSUE_SERVICE] Issue reassigned');
+      _debugLog.addLog(
+        'ISSUE_SERVICE',
+        'Issue reassigned successfully',
+        data: {'issueId': issueId, 'newDepartment': newDepartment},
+      );
+    } catch (e, stackTrace) {
+      debugPrint('❌ [ISSUE_SERVICE] reassignDepartment ERROR: $e');
+      _debugLog.addLog(
+        'ISSUE_SERVICE',
+        'Error reassigning issue: $e',
+        data: {'issueId': issueId, 'stackTrace': stackTrace.toString()},
+        isError: true,
+      );
+      rethrow;
+    }
   }
 
   /// Delete an issue (admin only)
@@ -430,6 +545,123 @@ class IssueService {
         'ISSUE_SERVICE',
         'Error fetching total ongoing issue count: $e',
         data: {'stackTrace': stackTrace.toString()},
+        isError: true,
+      );
+      rethrow;
+    }
+  }
+
+  // ─── COMMENTS SUBCOLLECTION ─────────────────────────────────────────────
+
+  /// Get comments subcollection reference for an issue
+  CollectionReference<Map<String, dynamic>> _commentsCollection(String issueId) =>
+      _issuesCollection.doc(issueId).collection('comments');
+
+  /// Add a comment to an issue
+  Future<String> addComment({
+    required String issueId,
+    required String comment,
+    required UserModel author,
+    String? type,
+  }) async {
+    debugPrint('📝 [ISSUE_SERVICE] addComment($issueId) called');
+    _debugLog.addLog(
+      'ISSUE_SERVICE',
+      'Adding comment to issue',
+      data: {'issueId': issueId, 'authorName': author.displayName, 'type': type},
+    );
+    
+    try {
+      final commentData = {
+        'comment': comment,
+        'authorId': author.uid,
+        'authorName': author.displayName,
+        'authorDepartment': author.department,
+        'createdAt': Timestamp.now(),
+        if (type != null) 'type': type,
+      };
+      
+      final docRef = await _commentsCollection(issueId).add(commentData);
+      
+      debugPrint('✅ [ISSUE_SERVICE] Comment added: ${docRef.id}');
+      _debugLog.addLog(
+        'ISSUE_SERVICE',
+        'Comment added successfully',
+        data: {'issueId': issueId, 'commentId': docRef.id},
+      );
+      
+      return docRef.id;
+    } catch (e, stackTrace) {
+      debugPrint('❌ [ISSUE_SERVICE] addComment ERROR: $e');
+      _debugLog.addLog(
+        'ISSUE_SERVICE',
+        'Error adding comment: $e',
+        data: {'issueId': issueId, 'stackTrace': stackTrace.toString()},
+        isError: true,
+      );
+      rethrow;
+    }
+  }
+
+  /// Get comments for an issue as a stream
+  Stream<List<IssueCommentModel>> getComments(String issueId) {
+    debugPrint('📝 [ISSUE_SERVICE] getComments($issueId) called');
+    _debugLog.addLog(
+      'ISSUE_SERVICE',
+      'Fetching comments for issue',
+      data: {'issueId': issueId},
+    );
+    
+    return _commentsCollection(issueId)
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) {
+          final comments = snapshot.docs
+              .map((doc) => IssueCommentModel.fromFirestore(doc))
+              .toList();
+          
+          debugPrint('✅ [ISSUE_SERVICE] getComments received ${comments.length} comments');
+          _debugLog.addLog(
+            'ISSUE_SERVICE',
+            'Received comments',
+            data: {'issueId': issueId, 'count': comments.length},
+          );
+          
+          return comments;
+        })
+        .handleError((error, stackTrace) {
+          debugPrint('❌ [ISSUE_SERVICE] getComments ERROR: $error');
+          _debugLog.addLog(
+            'ISSUE_SERVICE',
+            'Error fetching comments: $error',
+            data: {'issueId': issueId, 'stackTrace': stackTrace.toString()},
+            isError: true,
+          );
+          throw error;
+        });
+  }
+
+  /// Get comments once (not as stream)
+  Future<List<IssueCommentModel>> getCommentsOnce(String issueId) async {
+    debugPrint('📝 [ISSUE_SERVICE] getCommentsOnce($issueId) called');
+    
+    try {
+      final snapshot = await _commentsCollection(issueId)
+          .orderBy('createdAt', descending: true)
+          .get();
+      
+      final comments = snapshot.docs
+          .map((doc) => IssueCommentModel.fromFirestore(doc))
+          .toList();
+      
+      debugPrint('✅ [ISSUE_SERVICE] getCommentsOnce received ${comments.length} comments');
+      return comments;
+    } catch (e, stackTrace) {
+      debugPrint('❌ [ISSUE_SERVICE] getCommentsOnce ERROR: $e');
+      _debugLog.addLog(
+        'ISSUE_SERVICE',
+        'Error fetching comments once: $e',
+        data: {'issueId': issueId, 'stackTrace': stackTrace.toString()},
         isError: true,
       );
       rethrow;

@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../settings_screen.dart';
 import '../report_issue/report_issue_flow.dart';
+import '../../config/routes.dart';
 import '../../models/floor_model.dart';
 import '../../models/issue_model.dart';
 import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/issue_service.dart';
-
+import '../../widgets/issue_action_sheets.dart';
 /// Employee dashboard
 /// Floor diagnostic system with persistent sidebar navigation
 class EmployeeDashboard extends StatefulWidget {
@@ -962,7 +963,15 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: () {},
+              onPressed: () {
+                if (_currentUser != null) {
+                  showTakeActionSheet(
+                    context: context,
+                    issue: issue,
+                    currentUser: _currentUser!,
+                  );
+                }
+              },
               style: ElevatedButton.styleFrom(
                 backgroundColor: kDark,
                 foregroundColor: Colors.white,

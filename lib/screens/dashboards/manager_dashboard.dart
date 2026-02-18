@@ -5,6 +5,7 @@ import '../../models/issue_model.dart';
 import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/issue_service.dart';
+import '../../widgets/issue_action_sheets.dart';
 
 /// Manager dashboard
 /// Shows 3 department cards - tap to view department issues
@@ -373,7 +374,15 @@ class _ManagerDashboardState extends State<ManagerDashboard> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: () {},
+              onPressed: () {
+                if (_currentUser != null) {
+                  showTakeActionSheet(
+                    context: context,
+                    issue: issue,
+                    currentUser: _currentUser!,
+                  );
+                }
+              },
               style: ElevatedButton.styleFrom(
                 backgroundColor: kDark,
                 foregroundColor: Colors.white,
