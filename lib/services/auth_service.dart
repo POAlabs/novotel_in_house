@@ -1,10 +1,9 @@
-//everything concerning authentication is here 
+//everything concerning authentication is here
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../models/user_model.dart';
-import '../config/departments.dart';
 import 'debug_log_service.dart';
 
 // Authentication service for Firebase
@@ -28,24 +27,54 @@ class AuthService {
   static bool get firebaseInitialized => _firebaseInitialized;
   static set firebaseInitialized(bool value) => _firebaseInitialized = value;
 
-// TODO: remove this temporary bypass of to the application once in production or after adding the 
-//the admin users
-  // added this because i do not want to keep on logging in to the application set false if you want 
-  // to authenticate
-  static const bool _temporaryBypass = true;
+  /// Restores a previously authenticated Firebase session.
+  /// Returns the [UserModel] if a valid session exists, or null otherwise.
+  /// Firebase Auth automatically persists tokens on device, so this will
+  /// return the logged-in user without requiring them to re-enter credentials.
+  Future<UserModel?> restoreSession() async {
+    if (!_firebaseInitialized) return null;
 
-  UserModel bypassLoginAsAdmin() {
-    final user = UserModel(
-      uid: 'temp-admin-bypass',
-      email: 'admin@novotel.com',
-      displayName: 'Temporary Admin',
-      role: UserRole.systemAdmin,
-      department: 'IT',
-      isActive: true,
-      createdAt: DateTime.now(),
-    );
-    _currentUser = user;
-    return user;
+    final firebaseUser = _auth.currentUser;
+    if (firebaseUser == null) return null;
+
+    // Reload to ensure the token is still valid
+    try {
+      await firebaseUser.reload();
+    } catch (e) {
+      debugPrint(
+        '⚠️ [AUTH_SERVICE] Session token invalid, requiring re-login: $e',
+      );
+      return null;
+    }
+
+    try {
+      final userDoc = await _firestore
+          .collection('users')
+          .doc(firebaseUser.uid)
+          .get();
+
+      if (!userDoc.exists) {
+        debugPrint(
+          '⚠️ [AUTH_SERVICE] Firestore profile missing for restored session',
+        );
+        await _auth.signOut();
+        return null;
+      }
+
+      final user = UserModel.fromFirestore(userDoc);
+      if (!user.isActive) {
+        debugPrint('⚠️ [AUTH_SERVICE] Restored user is deactivated');
+        await _auth.signOut();
+        return null;
+      }
+
+      _currentUser = user;
+      debugPrint('✅ [AUTH_SERVICE] Session restored for ${user.displayName}');
+      return user;
+    } catch (e) {
+      debugPrint('❌ [AUTH_SERVICE] Error restoring session: $e');
+      return null;
+    }
   }
 
   //actual sign in with email and password
@@ -55,12 +84,17 @@ class AuthService {
     required String password,
   }) async {
     final normalizedEmail = email.trim().toLowerCase();
-    
-    debugPrint('🔐 [AUTH_SERVICE] signInWithEmail called for: $normalizedEmail');
+
+    debugPrint(
+      '🔐 [AUTH_SERVICE] signInWithEmail called for: $normalizedEmail',
+    );
     _debugLog.addLog(
       'AUTH_SERVICE',
       'Sign in attempt',
-      data: {'email': normalizedEmail, 'firebaseInitialized': _firebaseInitialized},
+      data: {
+        'email': normalizedEmail,
+        'firebaseInitialized': _firebaseInitialized,
+      },
     );
 
     // Try Firebase auth if initialized
@@ -80,10 +114,14 @@ class AuthService {
             data: {'email': normalizedEmail},
             isError: true,
           );
-          throw Exception('Sign in failed: No user returned. Please contact Harrison 07 910 190 89. He Never Disappoints');
+          throw Exception(
+            'Sign in failed: No user returned. Please contact Harrison 07 910 190 89. He Never Disappoints',
+          );
         }
 
-        debugPrint('✅ [AUTH_SERVICE] Firebase auth successful, UID: ${userCredential.user!.uid}');
+        debugPrint(
+          '✅ [AUTH_SERVICE] Firebase auth successful, UID: ${userCredential.user!.uid}',
+        );
         _debugLog.addLog(
           'AUTH_SERVICE',
           'Firebase auth successful',
@@ -113,7 +151,9 @@ class AuthService {
         }
 
         final user = UserModel.fromFirestore(userDoc);
-        debugPrint('✅ [AUTH_SERVICE] User profile loaded: ${user.displayName} (${user.role.displayName})');
+        debugPrint(
+          '✅ [AUTH_SERVICE] User profile loaded: ${user.displayName} (${user.role.displayName})',
+        );
         _debugLog.addLog(
           'AUTH_SERVICE',
           'User profile loaded from Firestore',
@@ -150,11 +190,17 @@ class AuthService {
         );
         return user;
       } on FirebaseAuthException catch (e) {
-        debugPrint('❌ [AUTH_SERVICE] FirebaseAuthException: ${e.code} - ${e.message}');
+        debugPrint(
+          '❌ [AUTH_SERVICE] FirebaseAuthException: ${e.code} - ${e.message}',
+        );
         _debugLog.addLog(
           'AUTH_SERVICE',
           'Firebase auth error: ${e.code}',
-          data: {'code': e.code, 'message': e.message, 'email': normalizedEmail},
+          data: {
+            'code': e.code,
+            'message': e.message,
+            'email': normalizedEmail,
+          },
           isError: true,
         );
         throw Exception(_getFirebaseAuthErrorMessage(e.code));
@@ -190,7 +236,7 @@ class AuthService {
       'Sign out requested',
       data: {'currentUser': _currentUser?.email},
     );
-    
+
     try {
       if (_firebaseInitialized) {
         await _auth.signOut();
@@ -248,13 +294,18 @@ class AuthService {
   // Refresh current user data from Firestore
   Future<void> refreshCurrentUser() async {
     debugPrint('🔐 [AUTH_SERVICE] refreshCurrentUser called');
-    
+
     if (!_firebaseInitialized || _auth.currentUser == null) {
-      debugPrint('⚠️ [AUTH_SERVICE] Cannot refresh: Firebase not initialized or no current user');
+      debugPrint(
+        '⚠️ [AUTH_SERVICE] Cannot refresh: Firebase not initialized or no current user',
+      );
       _debugLog.addLog(
         'AUTH_SERVICE',
         'Cannot refresh user',
-        data: {'firebaseInitialized': _firebaseInitialized, 'hasCurrentUser': _auth.currentUser != null},
+        data: {
+          'firebaseInitialized': _firebaseInitialized,
+          'hasCurrentUser': _auth.currentUser != null,
+        },
       );
       return;
     }
@@ -273,11 +324,16 @@ class AuthService {
 
       if (userDoc.exists) {
         _currentUser = UserModel.fromFirestore(userDoc);
-        debugPrint('✅ [AUTH_SERVICE] User data refreshed: ${_currentUser?.displayName}');
+        debugPrint(
+          '✅ [AUTH_SERVICE] User data refreshed: ${_currentUser?.displayName}',
+        );
         _debugLog.addLog(
           'AUTH_SERVICE',
           'User data refreshed',
-          data: {'displayName': _currentUser?.displayName, 'role': _currentUser?.role.displayName},
+          data: {
+            'displayName': _currentUser?.displayName,
+            'role': _currentUser?.role.displayName,
+          },
         );
       } else {
         debugPrint('⚠️ [AUTH_SERVICE] User document not found during refresh');
