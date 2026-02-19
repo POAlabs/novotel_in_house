@@ -6,6 +6,7 @@ import '../models/user_model.dart';
 import '../services/auth_service.dart';
 import 'admin/user_management_screen.dart';
 import 'admin/debug_logs_screen.dart';
+import 'issue_history_screen.dart';
 
 /// Settings screen with role-based options
 /// System Admins see additional user management options
@@ -18,6 +19,7 @@ class SettingsScreen extends StatelessWidget {
   static const Color kDark = Color(0xFF0F172A);
   static const Color kGrey = Color(0xFF64748B);
   static const Color kAccent = Color(0xFF3B82F6);
+  static const Color kGreen = Color(0xFF10B981);
   static const Color kRed = Color(0xFFEF4444);
 
   bool get _isAdmin => currentUser?.isSystemAdmin ?? false;
@@ -64,6 +66,16 @@ class SettingsScreen extends StatelessWidget {
               title: 'Notifications',
               subtitle: 'Customize alerts',
               onTap: () {},
+            ),
+            _buildSettingItem(
+              icon: Icons.history,
+              title: 'Issue History',
+              subtitle: 'View resolved issues',
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const IssueHistoryScreen()),
+              ),
+              iconColor: kGreen,
             ),
 
             // Admin section (only for system admins)

@@ -516,6 +516,48 @@ class IssueService {
     }
   }
 
+  /// Get all resolved/completed issues as a stream (for history)
+  Stream<List<IssueModel>> getResolvedIssues() {
+    debugPrint('📝 [ISSUE_SERVICE] getResolvedIssues() called');
+    _debugLog.addLog(
+      'ISSUE_SERVICE',
+      'Fetching all resolved issues',
+      data: {'filter': 'status=Completed'},
+    );
+    
+    return _issuesCollection
+        .where('status', isEqualTo: 'Completed')
+        .orderBy('resolvedAt', descending: true)
+        .snapshots()
+        .map((snapshot) {
+          final issues = snapshot.docs
+              .map((doc) => IssueModel.fromFirestore(doc))
+              .toList();
+          
+          debugPrint('✅ [ISSUE_SERVICE] getResolvedIssues received ${issues.length} issues');
+          _debugLog.addLog(
+            'ISSUE_SERVICE',
+            'Received resolved issues',
+            data: {
+              'count': issues.length,
+              'issueIds': issues.map((i) => i.id).toList(),
+            },
+          );
+          
+          return issues;
+        })
+        .handleError((error, stackTrace) {
+          debugPrint('❌ [ISSUE_SERVICE] getResolvedIssues ERROR: $error');
+          _debugLog.addLog(
+            'ISSUE_SERVICE',
+            'Error fetching resolved issues: $error',
+            data: {'stackTrace': stackTrace.toString()},
+            isError: true,
+          );
+          throw error;
+        });
+  }
+
   /// Get count of all ongoing issues
   Future<int> getTotalOngoingIssueCount() async {
     debugPrint('📝 [ISSUE_SERVICE] getTotalOngoingIssueCount() called');
@@ -578,7 +620,7 @@ class IssueService {
         'authorName': author.displayName,
         'authorDepartment': author.department,
         'createdAt': Timestamp.now(),
-        if (type != null) 'type': type,
+        'type': ?type,
       };
       
       final docRef = await _commentsCollection(issueId).add(commentData);

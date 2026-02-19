@@ -110,39 +110,52 @@ class _DebugLogsScreenState extends State<DebugLogsScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: kDark, size: 20),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(
-          'Debug Logs',
-          style: GoogleFonts.sora(
-            color: kDark,
-            fontWeight: FontWeight.w700,
-            fontSize: 18,
-          ),
-        ),
-        actions: [
-          // Copy all logs
-          IconButton(
-            icon: const Icon(Icons.copy_all, color: kAccent, size: 20),
-            onPressed: logs.isEmpty ? null : _copyAllLogs,
-            tooltip: 'Copy All Logs',
-          ),
-          // Clear logs
-          IconButton(
-            icon: const Icon(Icons.delete_outline, color: kRed, size: 20),
-            onPressed: totalLogs == 0 ? null : _clearLogs,
-            tooltip: 'Clear Logs',
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: Column(
+      body: SafeArea(
+        child: Column(
         children: [
+          // Inline header
+          Container(
+            color: Colors.white,
+            padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+            child: Row(
+              children: [
+                GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.arrow_back_ios_new, size: 16, color: kDark),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Text(
+                    'Debug Logs',
+                    style: GoogleFonts.sora(
+                      color: kDark,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 18,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.copy_all, color: kAccent, size: 20),
+                  onPressed: logs.isEmpty ? null : _copyAllLogs,
+                  tooltip: 'Copy All Logs',
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline, color: kRed, size: 20),
+                  onPressed: totalLogs == 0 ? null : _clearLogs,
+                  tooltip: 'Clear Logs',
+                ),
+              ],
+            ),
+          ),
           // Stats and filters
           _buildStatsAndFilters(totalLogs, errorCount),
           // Logs list
@@ -152,6 +165,7 @@ class _DebugLogsScreenState extends State<DebugLogsScreen> {
                 : _buildLogsList(logs),
           ),
         ],
+      ),
       ),
     );
   }

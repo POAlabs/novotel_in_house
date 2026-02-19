@@ -134,28 +134,42 @@ class _ReportIssueFlowState extends State<ReportIssueFlow> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: kDark),
-          onPressed: _previousStep,
-        ),
-        title: Text(
-          'Report Issue',
-          style: const TextStyle(
-            color: kDark,
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        centerTitle: true,
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(4),
-          child: _buildProgressIndicator(),
-        ),
-      ),
-      body: PageView(
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Inline header
+            Container(
+              color: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back, color: kDark),
+                    onPressed: _previousStep,
+                    constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                    padding: EdgeInsets.zero,
+                  ),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'Report Issue',
+                      style: TextStyle(
+                        color: kDark,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                  const SizedBox(width: 48), // Balance the back button
+                ],
+              ),
+            ),
+            // Progress indicator
+            _buildProgressIndicator(),
+            // Page content
+            Expanded(
+              child: PageView(
         controller: _pageController,
         physics: const NeverScrollableScrollPhysics(),
         children: [
@@ -210,6 +224,10 @@ class _ReportIssueFlowState extends State<ReportIssueFlow> {
             },
           ),
         ],
+      ),
+            ),
+          ],
+        ),
       ),
     );
   }

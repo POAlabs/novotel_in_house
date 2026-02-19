@@ -15,6 +15,7 @@ dependencies:
 
   cupertino_icons: ^1.0.8
   google_fonts: ^6.1.0
+  flutter_svg: ^2.0.0
   
   # Firebase
   firebase_core: ^3.9.0
@@ -33,3 +34,6 @@ flutter:
 
   assets:
     - assets/logo.jfif
+    - assets/building.svg
+    - assets/home.svg
+    - assets/user.svg

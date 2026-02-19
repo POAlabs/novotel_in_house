@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../settings_screen.dart';
 import '../report_issue/report_issue_flow.dart';
-import '../../config/routes.dart';
 import '../../models/floor_model.dart';
 import '../../models/issue_model.dart';
 import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/issue_service.dart';
 import '../../widgets/issue_action_sheets.dart';
+
 /// Employee dashboard
-/// Floor diagnostic system with persistent sidebar navigation
+/// Floor diagnostic system with bottom navigation
 class EmployeeDashboard extends StatefulWidget {
   const EmployeeDashboard({super.key});
 
@@ -25,7 +26,10 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
   static const Color kGreen = Color(0xFF10B981);
   static const Color kRed = Color(0xFFEF4444);
 
-  // Current view: null = home, otherwise = selected floor id
+  // Current bottom nav tab: 0 = Building, 1 = Home, 2 = Settings
+  int _currentNavIndex = 1; // Start on Home
+
+  // Selected floor in Building tab (null = show floor list)
   String? _selectedFloorId;
 
   // Get current user from auth service
@@ -55,6 +59,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
   /// Navigate to floor and scroll to specific room/area
   void _navigateToFloorAndScrollTo(String floorId, String area) {
     setState(() {
+      _currentNavIndex = 0; // Switch to Building tab
       _selectedFloorId = floorId;
       _scrollToRoom = area;
     });
@@ -135,6 +140,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
     return Scaffold(
       backgroundColor: kBg,
       body: SafeArea(
+        bottom: false, // Bottom nav handles its own safe area
         child: StreamBuilder<List<IssueModel>>(
           stream: _issueService.getAllOngoingIssues(),
           builder: (context, snapshot) {
@@ -142,180 +148,259 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
             if (snapshot.hasData) {
               _issues = snapshot.data!;
             }
-            
-            return Row(
-              children: [
-                // Persistent sidebar
-                _buildSidebar(),
-                // Main viewport switches between home and floor view
-                Expanded(
-                  child: _selectedFloorId == null
-                      ? _buildHomeView()
-                      : _buildFloorView(),
-                ),
-              ],
-            );
+
+            return _buildCurrentTabContent();
           },
         ),
       ),
+      bottomNavigationBar: _buildBottomNavBar(),
     );
   }
 
-  // ─── SIDEBAR ────────────────────────────────────────────────────
+  /// Build content based on current tab
+  Widget _buildCurrentTabContent() {
+    switch (_currentNavIndex) {
+      case 0:
+        return _buildBuildingTab();
+      case 1:
+        return _buildHomeView();
+      case 2:
+        return SettingsScreen(currentUser: _currentUser);
+      default:
+        return _buildHomeView();
+    }
+  }
 
-  Widget _buildSidebar() {
+  // ─── BOTTOM NAVIGATION BAR ────────────────────────────────────────
+
+  Widget _buildBottomNavBar() {
     return Container(
-      width: 80,
       decoration: const BoxDecoration(
         color: Colors.white,
-        border: Border(right: BorderSide(color: Color(0xFFE2E8F0))),
+        border: Border(
+          top: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+        ),
       ),
-      child: Column(
-        children: [
-          const SizedBox(height: 24),
-          // Home button
-          _sidebarIcon(
-            Icons.home,
-            isActive: _selectedFloorId == null,
-            onTap: () => setState(() => _selectedFloorId = null),
+      // SafeArea here ensures the bar clears the home indicator / gesture bar
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: 56,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildNavItem(svgAsset: 'assets/building.svg', index: 0),
+              _buildNavItem(svgAsset: 'assets/home.svg', index: 1),
+              _buildNavItem(svgAsset: 'assets/user.svg', index: 2),
+            ],
           ),
-          const SizedBox(height: 12),
-          // Divider
-          Container(width: 28, height: 1, color: const Color(0xFFF1F5F9)),
-          const SizedBox(height: 12),
-          // Floor list
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              itemCount: _floors.length,
-              itemBuilder: (context, index) {
-                final floor = _floors[index];
-                final hasIssue = _hasIssue(floor.id);
-                final isSelected = _selectedFloorId == floor.id;
-                return _floorChip(floor, hasIssue, isSelected);
-              },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavItem({
+    required String svgAsset,
+    required int index,
+  }) {
+    final isActive = _currentNavIndex == index;
+    const activeColor = Color(0xFF3B82F6);
+    return GestureDetector(
+      onTap: () => setState(() {
+        _currentNavIndex = index;
+        if (index != 0) _selectedFloorId = null;
+      }),
+      behavior: HitTestBehavior.opaque,
+      child: SizedBox(
+        width: 72,
+        height: 56,
+        child: Center(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              color: isActive ? activeColor.withOpacity(0.1) : Colors.transparent,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: SvgPicture.asset(
+              svgAsset,
+              width: 22,
+              height: 22,
+              colorFilter: ColorFilter.mode(
+                isActive ? activeColor : const Color(0xFF94A3B8),
+                BlendMode.srcIn,
+              ),
             ),
           ),
-          // Settings
-          _sidebarIcon(
-            Icons.settings_outlined,
-            isActive: false,
-            onTap: () {
-               Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => SettingsScreen(currentUser: _currentUser),
-                ),
-              );
+        ),
+      ),
+    );
+  }
+
+  // ─── BUILDING TAB ────────────────────────────────────────────────
+
+  Widget _buildBuildingTab() {
+    // If a floor is selected, show floor detail view
+    if (_selectedFloorId != null) {
+      return _buildFloorView();
+    }
+    // Otherwise show the floor list
+    return _buildFloorListView();
+  }
+
+  /// Building overview — each floor is a horizontal row:
+  /// [floor label box] | [all components wrapped beside it]
+  Widget _buildFloorListView() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
+          child: Text(
+            'BUILDING OVERVIEW',
+            style: GoogleFonts.sora(
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 3,
+              color: const Color(0xFF94A3B8),
+            ),
+          ),
+        ),
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+            itemCount: _floors.length,
+            itemBuilder: (context, index) {
+              return _buildFloorRow(_floors[index]);
             },
           ),
-          const SizedBox(height: 24),
+        ),
+      ],
+    );
+  }
+
+  /// One row per floor: label box on left, all components on right
+  Widget _buildFloorRow(FloorModel floor) {
+    final hasIssue = _hasIssue(floor.id);
+    final hasRooms = _floorHasRooms(floor.id);
+    final floorNum = int.tryParse(floor.id);
+
+    // Build the list of component widgets for this floor
+    final List<Widget> components = [];
+
+    if (hasRooms && floorNum != null) {
+      // Floors 2-10: show all 40 guest room boxes
+      for (int i = 0; i < 40; i++) {
+        final roomNum = '$floorNum${(i + 1).toString().padLeft(2, '0')}';
+        final roomHasIssue = _issues.any(
+          (iss) => iss.area == 'Room $roomNum' && iss.floor == floor.id && iss.isOngoing,
+        );
+        components.add(_roomCard(roomNum, roomHasIssue));
+      }
+    } else {
+      // All other floors: show named area cards
+      for (final area in floor.areas) {
+        final areaHasIssue =
+            _issues.any((i) => i.area == area && i.floor == floor.id && i.isOngoing);
+        components.add(_areaCard(area, areaHasIssue));
+      }
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Floor label box ──────────────────────────────────────
+          GestureDetector(
+            onTap: () => setState(() => _selectedFloorId = floor.id),
+            child: Container(
+              width: 38,
+              constraints: const BoxConstraints(minHeight: 44),
+              decoration: BoxDecoration(
+                color: hasIssue ? const Color(0xFFFEF2F2) : const Color(0xFFF0FDF4),
+                border: Border.all(
+                  color: hasIssue ? const Color(0xFFFECACA) : const Color(0xFFBBF7D0),
+                  width: 1.5,
+                ),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Center(
+                child: Text(
+                  floor.id,
+                  style: TextStyle(
+                    fontSize: floor.id.length > 2 ? 8 : 11,
+                    fontWeight: FontWeight.w800,
+                    color: hasIssue ? kRed : kGreen,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 6),
+          // ── Components (rooms or areas) ───────────────────────────
+          Expanded(
+            child: Wrap(
+              spacing: 5,
+              runSpacing: 5,
+              children: components,
+            ),
+          ),
         ],
       ),
     );
   }
 
-  /// Sidebar icon button
-  Widget _sidebarIcon(IconData icon, {required bool isActive, required VoidCallback onTap}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 44,
-        height: 44,
-        decoration: BoxDecoration(
-          color: isActive ? kDark : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Icon(icon, size: 20, color: isActive ? Colors.white : const Color(0xFFCBD5E1)),
-      ),
-    );
-  }
-
-  /// Floor chip button in sidebar
-  Widget _floorChip(FloorModel floor, bool hasIssue, bool isSelected) {
-    // Selected state gets solid color, unselected gets tinted border
-    final Color bg;
-    final Color border;
-    final Color text;
-
-    if (isSelected) {
-      bg = hasIssue ? kRed : kGreen;
-      border = bg;
-      text = Colors.white;
-    } else {
-      bg = hasIssue ? const Color(0xFFFEF2F2) : const Color(0xFFF0FDF4);
-      border = hasIssue ? const Color(0xFFFECACA) : const Color(0xFFBBF7D0);
-      text = hasIssue ? kRed : kGreen;
-    }
-
+  /// Floor grid item for Building tab
+  Widget _buildFloorGridItem(FloorModel floor, bool hasIssue) {
     return GestureDetector(
       onTap: () => setState(() => _selectedFloorId = floor.id),
       child: Container(
-        width: 44,
-        height: 44,
-        margin: const EdgeInsets.only(bottom: 8),
         decoration: BoxDecoration(
-          color: bg,
-          border: Border.all(color: border),
-          borderRadius: BorderRadius.circular(10),
-          boxShadow: isSelected
-              ? [BoxShadow(color: bg.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 2))]
-              : null,
+          color: hasIssue ? const Color(0xFFFEF2F2) : const Color(0xFFF0FDF4),
+          border: Border.all(
+            color: hasIssue ? const Color(0xFFFECACA) : const Color(0xFFBBF7D0),
+            width: 1.5,
+          ),
+          borderRadius: BorderRadius.circular(12),
         ),
-        child: Center(
-          child: Text(
-            floor.id,
-            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: text),
-          ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Floor ID
+            Text(
+              floor.id,
+              style: GoogleFonts.sora(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                color: hasIssue ? kRed : kGreen,
+              ),
+            ),
+            const SizedBox(height: 3),
+            // Status dot
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  hasIssue ? Icons.warning_rounded : Icons.check_circle,
+                  size: 9,
+                  color: hasIssue ? kRed : kGreen,
+                ),
+                const SizedBox(width: 2),
+                Text(
+                  hasIssue ? 'ISSUE' : 'OK',
+                  style: TextStyle(
+                    fontSize: 7,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.3,
+                    color: hasIssue ? kRed : kGreen,
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
-      ),
-    );
-  }
-
-  // ─── TOP BAR ────────────────────────────────────────────────────
-
-  Widget _buildTopBar(String title) {
-    return Container(
-      height: 56,
-      padding: const EdgeInsets.symmetric(horizontal: 32),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.8),
-        border: const Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
-      ),
-      child: Row(
-        children: [
-          // Dynamic title
-          Text(
-            title.toUpperCase(),
-            style: const TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 2,
-              color: Color(0xFF94A3B8),
-            ),
-          ),
-          const Spacer(),
-          // User identity block
-          const Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text('Staff Member', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: kDark)),
-              Text('EMPLOYEE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, letterSpacing: 2, color: Color(0xFF94A3B8))),
-            ],
-          ),
-          const SizedBox(width: 12),
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: const Color(0xFFF8FAFC),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Icon(Icons.person, size: 14, color: Color(0xFF64748B)),
-          ),
-        ],
       ),
     );
   }
@@ -541,7 +626,10 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
     final floorName = _getFloorDisplayName(floorId);
 
     return GestureDetector(
-      onTap: () => setState(() => _selectedFloorId = floorId),
+      onTap: () => setState(() {
+        _currentNavIndex = 0; // Switch to Building tab
+        _selectedFloorId = floorId;
+      }),
       child: Container(
         margin: const EdgeInsets.only(bottom: 16),
         padding: const EdgeInsets.all(20),
@@ -695,7 +783,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
     }
   }
 
-  // ─── FLOOR VIEW
+  // ─── FLOOR VIEW ────────────────────────────────────────────────────
 
   Widget _buildFloorView() {
     final floor = _selectedFloor!;
@@ -706,16 +794,33 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Floor title + Report Button
+          // Back button + Floor title + Report Button
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                floor.name,
-                style: GoogleFonts.sora(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w800,
-                  color: kDark,
+              // Back button
+              GestureDetector(
+                onTap: () => setState(() => _selectedFloorId = null),
+                child: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.arrow_back_ios_new, size: 18, color: kDark),
+                ),
+              ),
+              const SizedBox(width: 12),
+              // Floor title
+              Expanded(
+                child: Text(
+                  floor.name,
+                  style: GoogleFonts.sora(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                    color: kDark,
+                  ),
                 ),
               ),
               // Report Issue Button

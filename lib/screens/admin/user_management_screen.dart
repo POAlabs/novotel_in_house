@@ -43,38 +43,54 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: kDark, size: 20),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(
-          'User Management',
-          style: GoogleFonts.sora(
-            color: kDark,
-            fontWeight: FontWeight.w700,
-            fontSize: 18,
-          ),
-        ),
-        actions: [
-          IconButton(
-            icon: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: kAccent,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(Icons.add, color: Colors.white, size: 20),
-            ),
-            onPressed: () => _navigateToAddUser(),
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: Column(
+      body: SafeArea(
+        child: Column(
         children: [
+          // Inline header
+          Container(
+            color: Colors.white,
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+            child: Row(
+              children: [
+                GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.arrow_back_ios_new, size: 16, color: kDark),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Text(
+                    'User Management',
+                    style: GoogleFonts.sora(
+                      color: kDark,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 18,
+                    ),
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () => _navigateToAddUser(),
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: kAccent,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.add, color: Colors.white, size: 20),
+                  ),
+                ),
+              ],
+            ),
+          ),
           // Search and filters
           _buildSearchAndFilters(),
           // User list
@@ -82,6 +98,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             child: _buildUserList(),
           ),
         ],
+      ),
       ),
     );
   }
