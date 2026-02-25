@@ -7,6 +7,7 @@ import '../services/auth_service.dart';
 import 'admin/user_management_screen.dart';
 import 'admin/debug_logs_screen.dart';
 import 'issue_history_screen.dart';
+import 'lost_and_found_screen.dart';
 
 /// Settings screen with role-based options
 /// System Admins see additional user management options
@@ -31,16 +32,10 @@ class SettingsScreen extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: kDark),
-          onPressed: () => Navigator.pop(context),
-        ),
+        automaticallyImplyLeading: false, // No back button
         title: Text(
           'Settings',
-          style: GoogleFonts.sora(
-            color: kDark,
-            fontWeight: FontWeight.bold,
-          ),
+          style: GoogleFonts.sora(color: kDark, fontWeight: FontWeight.bold),
         ),
       ),
       body: SingleChildScrollView(
@@ -73,9 +68,23 @@ class SettingsScreen extends StatelessWidget {
               subtitle: 'View resolved issues',
               onTap: () => Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const IssueHistoryScreen()),
+                MaterialPageRoute(
+                  builder: (context) => const IssueHistoryScreen(),
+                ),
               ),
               iconColor: kGreen,
+            ),
+            _buildSettingItem(
+              icon: Icons.inventory_2_outlined,
+              title: 'Lost & Found',
+              subtitle: 'Report or view lost & found items',
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const LostAndFoundScreen(),
+                ),
+              ),
+              iconColor: const Color(0xFFF59E0B),
             ),
 
             // Admin section (only for system admins)
@@ -89,7 +98,9 @@ class SettingsScreen extends StatelessWidget {
                 subtitle: 'Add, edit, or remove users',
                 onTap: () => Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const UserManagementScreen()),
+                  MaterialPageRoute(
+                    builder: (context) => const UserManagementScreen(),
+                  ),
                 ),
                 iconColor: kAccent,
                 showBadge: true,
@@ -114,7 +125,9 @@ class SettingsScreen extends StatelessWidget {
                 subtitle: 'View system logs and errors',
                 onTap: () => Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const DebugLogsScreen()),
+                  MaterialPageRoute(
+                    builder: (context) => const DebugLogsScreen(),
+                  ),
                 ),
                 iconColor: const Color(0xFFF59E0B),
                 showBadge: true,
@@ -130,7 +143,7 @@ class SettingsScreen extends StatelessWidget {
             // App info
             Center(
               child: Text(
-                'HUB OS v1.0.0',
+                'Novotel Westlands In-House App v 1.0.0',
                 style: GoogleFonts.sora(
                   fontSize: 12,
                   color: kGrey.withOpacity(0.5),
@@ -170,7 +183,9 @@ class SettingsScreen extends StatelessWidget {
             ),
             child: Center(
               child: Text(
-                user.displayName.isNotEmpty ? user.displayName[0].toUpperCase() : '?',
+                user.displayName.isNotEmpty
+                    ? user.displayName[0].toUpperCase()
+                    : '?',
                 style: GoogleFonts.sora(
                   fontSize: 22,
                   fontWeight: FontWeight.w700,
@@ -205,7 +220,10 @@ class SettingsScreen extends StatelessWidget {
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
                       decoration: BoxDecoration(
                         color: roleColor.withOpacity(0.2),
                         borderRadius: BorderRadius.circular(6),
@@ -295,7 +313,10 @@ class SettingsScreen extends StatelessWidget {
                       if (showBadge) ...[
                         const SizedBox(width: 8),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: kAccent,
                             borderRadius: BorderRadius.circular(4),
@@ -338,7 +359,11 @@ class SettingsScreen extends StatelessWidget {
         onPressed: () async {
           await AuthService().signOut();
           if (context.mounted) {
-            Navigator.pushNamedAndRemoveUntil(context, AppRoutes.signIn, (route) => false);
+            Navigator.pushNamedAndRemoveUntil(
+              context,
+              AppRoutes.signIn,
+              (route) => false,
+            );
           }
         },
         style: ElevatedButton.styleFrom(

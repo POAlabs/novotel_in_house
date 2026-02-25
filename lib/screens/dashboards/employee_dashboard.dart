@@ -25,6 +25,45 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
   static const Color kDark = Color(0xFF0F172A);
   static const Color kGreen = Color(0xFF10B981);
   static const Color kRed = Color(0xFFEF4444);
+  
+  // Priority-based colors
+  static const Color kUrgent = Color(0xFFDC2626); // Deep red
+  static const Color kHigh = Color(0xFFEA580C);   // Orange-red
+  static const Color kMedium = Color(0xFFF59E0B); // Amber
+  static const Color kLow = Color(0xFFFBBF24);    // Yellow
+
+  /// Get color based on issue priority
+  static Color _getPriorityColor(String priority) {
+    switch (priority.toLowerCase()) {
+      case 'urgent': return kUrgent;
+      case 'high': return kHigh;
+      case 'medium': return kMedium;
+      case 'low': return kLow;
+      default: return kRed;
+    }
+  }
+
+  /// Get background color based on issue priority
+  static Color _getPriorityBgColor(String priority) {
+    switch (priority.toLowerCase()) {
+      case 'urgent': return const Color(0xFFFEE2E2); // Light red
+      case 'high': return const Color(0xFFFFF7ED);   // Light orange
+      case 'medium': return const Color(0xFFFFFBEB); // Light amber
+      case 'low': return const Color(0xFFFEFCE8);    // Light yellow
+      default: return const Color(0xFFFEF2F2);
+    }
+  }
+
+  /// Get border color based on issue priority
+  static Color _getPriorityBorderColor(String priority) {
+    switch (priority.toLowerCase()) {
+      case 'urgent': return const Color(0xFFFECACA); // Red border
+      case 'high': return const Color(0xFFFED7AA);   // Orange border
+      case 'medium': return const Color(0xFFFDE68A); // Amber border
+      case 'low': return const Color(0xFFFEF08A);    // Yellow border
+      default: return const Color(0xFFFECACA);
+    }
+  }
 
   // Current bottom nav tab: 0 = Building, 1 = Home, 2 = Settings
   int _currentNavIndex = 1; // Start on Home
@@ -118,9 +157,9 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
     FloorModel(id: 'B3', name: 'Basement 3', areas: ['Engineering Workshop', 'Stores', 'Parking', 'Corridor']),
   ];
 
-  /// Check if a floor has active issues
+  /// Check if a floor has active issues (filtered by department visibility)
   bool _hasIssue(String floorId) {
-    return _issues.any((i) => i.floor == floorId && i.isOngoing);
+    return _issues.any((i) => i.floor == floorId && i.isOngoing && _canViewIssue(i));
   }
 
   /// Get the currently selected floor object
@@ -129,10 +168,10 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
     return _floors.firstWhere((f) => f.id == _selectedFloorId);
   }
 
-  /// Issues for currently selected floor
+  /// Issues for currently selected floor (filtered by department visibility)
   List<IssueModel> get _currentFloorIssues {
     if (_selectedFloorId == null) return [];
-    return _issues.where((i) => i.floor == _selectedFloorId && i.isOngoing).toList();
+    return _issues.where((i) => i.floor == _selectedFloorId && i.isOngoing && _canViewIssue(i)).toList();
   }
 
   @override
@@ -248,107 +287,168 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
     return _buildFloorListView();
   }
 
-  /// Building overview — each floor is a horizontal row:
-  /// [floor label box] | [all components wrapped beside it]
+  /// Get full floor name with ordinal (1st Floor, 2nd Floor, etc.)
+  String _getFloorLabel(String floorId) {
+    switch (floorId) {
+      case 'G': return 'Ground Floor';
+      case 'B1': return 'Basement 1';
+      case 'B2': return 'Basement 2';
+      case 'B3': return 'Basement 3';
+      case '1': return '1st Floor';
+      case '2': return '2nd Floor';
+      case '3': return '3rd Floor';
+      case '11': return '11th Floor';
+      case '12': return '12th Floor';
+      case '13': return '13th Floor';
+      default:
+        final num = int.tryParse(floorId);
+        if (num != null) return '${num}th Floor';
+        return 'Floor $floorId';
+    }
+  }
+
+  /// Get issue count for a floor (filtered by department)
+  int _getFloorIssueCount(String floorId) {
+    return _issues.where((i) => 
+      i.floor == floorId && 
+      i.isOngoing && 
+      _canViewIssue(i)
+    ).length;
+  }
+
+  /// Check if current user can view this issue (department filtering)
+  bool _canViewIssue(IssueModel issue) {
+    if (_currentUser == null) return false;
+    // System admins and managers can see all issues
+    if (_currentUser!.isSystemAdmin || _currentUser!.role.name == 'manager') {
+      return true;
+    }
+    // Staff can only see issues for their department
+    return issue.department == _currentDepartment;
+  }
+
+  /// Building overview — structure matching screenshot
   Widget _buildFloorListView() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
-          child: Text(
-            'BUILDING OVERVIEW',
-            style: GoogleFonts.sora(
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 3,
-              color: const Color(0xFF94A3B8),
+    return CustomScrollView(
+      slivers: [
+        // ── Header ──────────────────────────────────
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
+            child: Text(
+              'BUILDING OVERVIEW',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 3,
+                color: const Color(0xFF3B82F6),
+              ),
             ),
           ),
         ),
-        Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
-            itemCount: _floors.length,
-            itemBuilder: (context, index) {
-              return _buildFloorRow(_floors[index]);
-            },
+        // ── Floor rows ──────────────────────────────
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+          sliver: SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (context, index) => _buildFloorRow(_floors[index]),
+              childCount: _floors.length,
+            ),
           ),
         ),
       ],
     );
   }
 
-  /// One row per floor: label box on left, all components on right
+  /// One floor row: [Floor Number Box] | [Room/Area Cards]
+  /// No separate title row — matches BuildingOverview screenshot.
   Widget _buildFloorRow(FloorModel floor) {
-    final hasIssue = _hasIssue(floor.id);
+    final issueCount = _getFloorIssueCount(floor.id);
+    final hasIssue = issueCount > 0;
     final hasRooms = _floorHasRooms(floor.id);
     final floorNum = int.tryParse(floor.id);
 
-    // Build the list of component widgets for this floor
+    // Build component widgets
     final List<Widget> components = [];
 
     if (hasRooms && floorNum != null) {
-      // Floors 2-10: show all 40 guest room boxes
+      // Floors 2-10: 40 guest room boxes
       for (int i = 0; i < 40; i++) {
         final roomNum = '$floorNum${(i + 1).toString().padLeft(2, '0')}';
         final roomHasIssue = _issues.any(
-          (iss) => iss.area == 'Room $roomNum' && iss.floor == floor.id && iss.isOngoing,
+          (iss) => iss.area == 'Room $roomNum' && iss.floor == floor.id && iss.isOngoing && _canViewIssue(iss),
         );
-        components.add(_roomCard(roomNum, roomHasIssue));
+        components.add(_buildClickableRoomCard(floor.id, roomNum, roomHasIssue));
       }
     } else {
-      // All other floors: show named area cards
+      // All other floors: named area cards
       for (final area in floor.areas) {
-        final areaHasIssue =
-            _issues.any((i) => i.area == area && i.floor == floor.id && i.isOngoing);
-        components.add(_areaCard(area, areaHasIssue));
+        final areaHasIssue = _issues.any(
+          (i) => i.area == area && i.floor == floor.id && i.isOngoing && _canViewIssue(i),
+        );
+        components.add(_buildClickableAreaCard(floor.id, area, areaHasIssue));
       }
     }
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+    return Container(
+      // Extra vertical space between floors
+      margin: const EdgeInsets.only(bottom: 20),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Floor label box ──────────────────────────────────────
+          // ── Floor number box ────────────────────
           GestureDetector(
             onTap: () => setState(() => _selectedFloorId = floor.id),
             child: Container(
-              width: 38,
-              constraints: const BoxConstraints(minHeight: 44),
+              width: 44,
+              height: 44,
               decoration: BoxDecoration(
-                color: hasIssue ? const Color(0xFFFEF2F2) : const Color(0xFFF0FDF4),
+                color: hasIssue ? const Color(0xFFFEF2F2) : Colors.white,
+                borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: hasIssue ? const Color(0xFFFECACA) : const Color(0xFFBBF7D0),
+                  color: hasIssue ? kRed : const Color(0xFFCBD5E1),
                   width: 1.5,
                 ),
-                borderRadius: BorderRadius.circular(10),
               ),
               child: Center(
                 child: Text(
                   floor.id,
-                  style: TextStyle(
-                    fontSize: floor.id.length > 2 ? 8 : 11,
-                    fontWeight: FontWeight.w800,
-                    color: hasIssue ? kRed : kGreen,
+                  style: GoogleFonts.inter(
+                    fontSize: floor.id.length > 2 ? 12 : 16,
+                    fontWeight: FontWeight.w700,
+                    color: hasIssue ? kRed : kDark,
                   ),
-                  textAlign: TextAlign.center,
                 ),
               ),
             ),
           ),
-          const SizedBox(width: 6),
-          // ── Components (rooms or areas) ───────────────────────────
+          const SizedBox(width: 10),
+          // ── Room / area card grid ───────────────
           Expanded(
             child: Wrap(
-              spacing: 5,
-              runSpacing: 5,
+              spacing: 6,
+              runSpacing: 6,
               children: components,
             ),
           ),
         ],
       ),
+    );
+  }
+
+  /// Clickable area card that navigates to floor view
+  Widget _buildClickableAreaCard(String floorId, String area, bool hasIssue) {
+    return GestureDetector(
+      onTap: () => setState(() => _selectedFloorId = floorId),
+      child: _areaCard(area, hasIssue),
+    );
+  }
+
+  /// Clickable room card that navigates to floor view
+  Widget _buildClickableRoomCard(String floorId, String roomNum, bool hasIssue) {
+    return GestureDetector(
+      onTap: () => setState(() => _selectedFloorId = floorId),
+      child: _roomCard(roomNum, hasIssue),
     );
   }
 
@@ -408,14 +508,14 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
   // Get current user's department from auth
   String get _currentDepartment => _currentUser?.department ?? 'Engineering';
 
-  /// Get active issues for the current department
+  /// Get active issues for the current department (or all if admin/manager)
   List<IssueModel> get _departmentIssues {
-    return _issues.where((i) => i.department == _currentDepartment && i.isOngoing).toList();
+    return _issues.where((i) => i.isOngoing && _canViewIssue(i)).toList();
   }
 
-  /// Get active issues grouped by floor
+  /// Get active issues grouped by floor (filtered by department visibility)
   Map<String, List<IssueModel>> get _issuesByFloor {
-    final activeIssues = _issues.where((i) => i.isOngoing).toList();
+    final activeIssues = _issues.where((i) => i.isOngoing && _canViewIssue(i)).toList();
     final Map<String, List<IssueModel>> grouped = {};
     for (final issue in activeIssues) {
       grouped.putIfAbsent(issue.floor, () => []).add(issue);
@@ -455,63 +555,154 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
     );
   }
 
+  /// Get issues count in the last N days for current department
+  int _getIssueCountInLastDays(int days) {
+    final cutoff = DateTime.now().subtract(Duration(days: days));
+    return _issues.where((i) => 
+      i.department == _currentDepartment && 
+      i.createdAt.isAfter(cutoff)
+    ).length;
+  }
+
   Widget _buildDepartmentWrappedCard() {
     final deptIssues = _departmentIssues;
+    final issuesLast30Days = _getIssueCountInLastDays(30);
+    final issuesLast1Year = _getIssueCountInLastDays(365);
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(32),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Department Name
-          Text(
-            '$_currentDepartment\nDepartment',
-            style: GoogleFonts.sora(
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-              color: kDark,
-              height: 1.2,
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Main today's issues card
+        Expanded(
+          flex: 3,
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Department Name
+                Text(
+                  '$_currentDepartment\nDepartment',
+                  style: GoogleFonts.inter(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: kDark,
+                    height: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // Large issue count
+                Center(
+                  child: Text(
+                    '${deptIssues.length}',
+                    style: GoogleFonts.inter(
+                      fontSize: 64,
+                      fontWeight: FontWeight.w800,
+                      color: kRed,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                // Active issues label
+                Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: kRed.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      'Active Issues Today',
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: kRed,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 24),
-          // Large issue count
-          Center(
-            child: Text(
-              '${deptIssues.length}',
-              style: GoogleFonts.sora(
-                fontSize: 80,
-                fontWeight: FontWeight.w800,
-                color: kRed,
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          // Active issues label
-          Center(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              decoration: BoxDecoration(
-                color: kRed.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: Text(
-                'Active Issues Raised Today',
-                style: GoogleFonts.sora(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: kRed,
+        ),
+        const SizedBox(width: 12),
+        // Right side: 30 days and 1 year stats
+        SizedBox(
+          width: 90,
+          child: Column(
+            children: [
+              // Last 30 days
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      '$issuesLast30Days',
+                      style: GoogleFonts.inter(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
+                        color: kDark,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '30 Days',
+                      style: GoogleFonts.inter(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF64748B),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ),
+              const SizedBox(height: 8),
+              // Last 1 year
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      '$issuesLast1Year',
+                      style: GoogleFonts.inter(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
+                        color: kDark,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '1 Year',
+                      style: GoogleFonts.inter(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF64748B),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -631,12 +822,12 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
         _selectedFloorId = floorId;
       }),
       child: Container(
-        margin: const EdgeInsets.only(bottom: 16),
-        padding: const EdgeInsets.all(20),
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white, // Changed from 0xFFFEF2F2 to white
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: const Color(0xFFFECACA), width: 1.5),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -645,120 +836,121 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
             Row(
               children: [
                 Container(
-                  width: 48,
-                  height: 48,
+                  width: 40,
+                  height: 40,
                   decoration: BoxDecoration(
-                    color: kRed,
-                    borderRadius: BorderRadius.circular(12),
+                    color: kDark,
+                    borderRadius: BorderRadius.circular(10),
                   ),
                   child: Center(
                     child: Text(
                       floorId,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
+                      style: TextStyle(
+                        fontSize: floorId.length > 2 ? 11 : 14,
+                        fontWeight: FontWeight.w700,
                         color: Colors.white,
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(width: 14),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    floorName.toUpperCase(),
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.5,
+                    floorName,
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
                       color: kDark,
                     ),
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFEE2E2),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: const Color(0xFFFECACA)),
+                    color: kRed.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${issues.length}',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: kRed,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            // Issue previews - each tappable to scroll to that issue
+            ...issues.take(2).map((issue) {
+              final priorityColor = _getPriorityColor(issue.priority);
+              return GestureDetector(
+                onTap: () => _navigateToFloorAndScrollTo(floorId, issue.area),
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: _getPriorityBgColor(issue.priority),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: _getPriorityBorderColor(issue.priority)),
                   ),
                   child: Row(
-                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      const Icon(Icons.warning_rounded, size: 14, color: kRed),
-                      const SizedBox(width: 6),
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: priorityColor,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          issue.description,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: kDark,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
                       Text(
-                        '${issues.length}',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: kRed,
+                        issue.area,
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
+                          color: priorityColor,
                         ),
                       ),
                     ],
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            // Issue previews - each tappable to scroll to that issue
-            ...issues.take(2).map((issue) => GestureDetector(
-              onTap: () => _navigateToFloorAndScrollTo(floorId, issue.area),
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Container(
-                      width: 10,
-                      height: 10,
-                      decoration: const BoxDecoration(
-                        color: kRed,
-                        shape: BoxShape.circle,
-                      ),
+              );
+            }),
+            // Tap to view floor hint
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'View floor',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF94A3B8),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        issue.description,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: kDark,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      issue.area,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: Color(0xFF64748B),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            )),
-            const SizedBox(height: 8),
-            // Tap to view floor - no line separator
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  'TAP TO VIEW FLOOR',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 2,
-                    color: kRed.withOpacity(0.7),
                   ),
-                ),
-                const SizedBox(width: 6),
-                Icon(Icons.arrow_forward, size: 16, color: kRed.withOpacity(0.7)),
-              ],
+                  const SizedBox(width: 4),
+                  Icon(Icons.arrow_forward_ios, size: 10, color: const Color(0xFF94A3B8)),
+                ],
+              ),
             ),
           ],
         ),
@@ -1026,13 +1218,17 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
 
   /// Breach alert card for floor issues
   Widget _buildBreachCard(IssueModel issue) {
+    final priorityColor = _getPriorityColor(issue.priority);
+    final bgColor = _getPriorityBgColor(issue.priority);
+    final borderColor = _getPriorityBorderColor(issue.priority);
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(24),
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFFFEF2F2),
-        border: Border.all(color: const Color(0xFFFECACA), width: 2),
-        borderRadius: BorderRadius.circular(28),
+        color: bgColor,
+        border: Border.all(color: borderColor, width: 1.5),
+        borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1042,28 +1238,33 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(color: kRed, borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(color: priorityColor, borderRadius: BorderRadius.circular(8)),
                 child: Text(
                   issue.priority.toUpperCase(),
-                  style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 2, color: Colors.white),
+                  style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w700, letterSpacing: 1, color: Colors.white),
                 ),
               ),
-              Text(issue.timeAgo, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF94A3B8))),
+              Text(issue.timeAgo, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: Color(0xFF94A3B8))),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           // Description
           Text(
-            issue.description.toUpperCase(),
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: -0.5, color: kDark, height: 1.2),
+            issue.description,
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: kDark,
+              height: 1.3,
+            ),
           ),
           const SizedBox(height: 4),
           Text(
-            issue.area.toUpperCase(),
-            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 2, color: kRed),
+            issue.area,
+            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: priorityColor),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 14),
           // Action
           SizedBox(
             width: double.infinity,
@@ -1080,11 +1281,11 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: kDark,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 elevation: 0,
               ),
-              child: const Text('TAKE ACTION', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 2)),
+              child: const Text('TAKE ACTION', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, letterSpacing: 1)),
             ),
           ),
         ],

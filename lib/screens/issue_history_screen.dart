@@ -1,12 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/issue_model.dart';
+import '../models/user_model.dart';
+import '../services/auth_service.dart';
 import '../services/issue_service.dart';
 
-/// Screen to display history of all resolved issues
-/// Accessible to all users from Settings
+/// Screen to display history of resolved issues
+/// Staff see only their department issues
+/// Admins and managers see all issues
 class IssueHistoryScreen extends StatelessWidget {
   const IssueHistoryScreen({super.key});
+
+  /// Get current user from auth service
+  UserModel? get _currentUser => AuthService().currentUser;
+
+  /// Check if current user can view this issue
+  bool _canViewIssue(IssueModel issue) {
+    if (_currentUser == null) return false;
+    // System admins and managers can see all issues
+    if (_currentUser!.isSystemAdmin || _currentUser!.role.name == 'manager') {
+      return true;
+    }
+    // Staff can only see issues for their department
+    return issue.department == _currentUser!.department;
+  }
 
   // Design colors
   static const Color kBg = Color(0xFFF8FAFC);
@@ -78,7 +95,9 @@ class IssueHistoryScreen extends StatelessWidget {
             );
           }
 
-          final issues = snapshot.data ?? [];
+          // Filter issues based on department visibility
+          final allIssues = snapshot.data ?? [];
+          final issues = allIssues.where((i) => _canViewIssue(i)).toList();
 
           if (issues.isEmpty) {
             return Center(
