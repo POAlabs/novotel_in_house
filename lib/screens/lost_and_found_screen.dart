@@ -476,7 +476,7 @@ class _LostAndFoundScreenState extends State<LostAndFoundScreen>
                   ),
                   const SizedBox(height: 14),
 
-                  // Floor picker
+                  // Floor picker - tile selection
                   Text(
                     'Floor',
                     style: GoogleFonts.sora(
@@ -485,29 +485,38 @@ class _LostAndFoundScreenState extends State<LostAndFoundScreen>
                       color: kGrey,
                     ),
                   ),
-                  const SizedBox(height: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
-                    decoration: BoxDecoration(
-                      color: kBg,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
-                    ),
-                    child: DropdownButton<String>(
-                      value: _reportFloor,
-                      isExpanded: true,
-                      underline: const SizedBox(),
-                      style: GoogleFonts.sora(fontSize: 14, color: kDark),
-                      dropdownColor: Colors.white,
-                      items: floors
-                          .map(
-                            (f) => DropdownMenuItem(value: f, child: Text(f)),
-                          )
-                          .toList(),
-                      onChanged: (v) {
-                        if (v != null) setSheetState(() => _reportFloor = v);
-                      },
-                    ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: floors.map((f) {
+                      final isSelected = _reportFloor == f;
+                      return GestureDetector(
+                        onTap: () => setSheetState(() => _reportFloor = f),
+                        child: Container(
+                          width: 52,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: isSelected ? kBlue : kBg,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isSelected ? kBlue : const Color(0xFFE2E8F0),
+                              width: isSelected ? 2 : 1,
+                            ),
+                          ),
+                          child: Center(
+                            child: Text(
+                              f,
+                              style: GoogleFonts.sora(
+                                fontSize: f.length > 2 ? 11 : 14,
+                                fontWeight: FontWeight.w700,
+                                color: isSelected ? Colors.white : kDark,
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
                   ),
                   const SizedBox(height: 24),
 
@@ -774,8 +783,8 @@ class _ItemDetailSheetState extends State<_ItemDetailSheet> {
               const SizedBox(height: 10),
               _field(
                 _claimantContactCtrl,
-                'Contact / Room No.',
-                'Phone or room number',
+                'Contact',
+                'Phone number or email',
               ),
               const SizedBox(height: 16),
 

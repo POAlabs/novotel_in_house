@@ -6,7 +6,6 @@ import '../models/user_model.dart';
 import '../services/auth_service.dart';
 import 'admin/user_management_screen.dart';
 import 'admin/debug_logs_screen.dart';
-import 'issue_history_screen.dart';
 import 'lost_and_found_screen.dart';
 
 /// Settings screen with role-based options
@@ -51,28 +50,10 @@ class SettingsScreen extends StatelessWidget {
             _buildSectionHeader('Account'),
             const SizedBox(height: 16),
             _buildSettingItem(
-              icon: Icons.person_outline,
-              title: 'Profile',
-              subtitle: 'Manage your account',
-              onTap: () {},
-            ),
-            _buildSettingItem(
               icon: Icons.notifications_outlined,
               title: 'Notifications',
               subtitle: 'Customize alerts',
               onTap: () {},
-            ),
-            _buildSettingItem(
-              icon: Icons.history,
-              title: 'Issue History',
-              subtitle: 'View resolved issues',
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const IssueHistoryScreen(),
-                ),
-              ),
-              iconColor: kGreen,
             ),
             _buildSettingItem(
               icon: Icons.inventory_2_outlined,

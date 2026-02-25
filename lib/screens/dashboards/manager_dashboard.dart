@@ -99,21 +99,21 @@ class _ManagerDashboardState extends State<ManagerDashboard> {
 
   // All hotel floors
   final List<FloorModel> _floors = const [
-    FloorModel(id: '11', name: '11th Floor', areas: ['TnT', 'Kitchen', 'Corridor']),
-    FloorModel(id: '10', name: '10th Floor', areas: ['Kitchen', 'Executive Lounge', 'Pool Bar', 'Swimming Pool', 'Corridor']),
-    FloorModel(id: '9', name: '9th Floor', areas: ['Corridor']),
-    FloorModel(id: '8', name: '8th Floor', areas: ['Corridor']),
-    FloorModel(id: '7', name: '7th Floor', areas: ['Corridor']),
-    FloorModel(id: '6', name: '6th Floor', areas: ['Corridor']),
-    FloorModel(id: '5', name: '5th Floor', areas: ['Corridor']),
-    FloorModel(id: '4', name: '4th Floor', areas: ['Corridor']),
-    FloorModel(id: '3', name: '3rd Floor', areas: ['Corridor']),
-    FloorModel(id: '2', name: '2nd Floor', areas: ['Corridor']),
-    FloorModel(id: '1', name: '1st Floor', areas: ['Meeting Rooms', 'Washrooms', 'Spa', 'Gym', 'Corridor']),
-    FloorModel(id: 'G', name: 'Ground Floor', areas: ["Gemma's", 'Main Kitchen', 'Social Hub', 'Front Office', 'Simba Ballroom', 'Corridor']),
-    FloorModel(id: 'B1', name: 'Basement 1', areas: ['Back Office', 'Finance', 'Staff Cafeteria', 'Parking', 'Corridor']),
-    FloorModel(id: 'B2', name: 'Basement 2', areas: ['Parking', 'Bakery', 'Control Room', 'Laundry', 'Corridor']),
-    FloorModel(id: 'B3', name: 'Basement 3', areas: ['Engineering Workshop', 'Stores', 'Parking', 'Corridor']),
+    FloorModel(id: '11', name: '11th Floor', areas: ['TnT', 'Kitchen', 'General']),
+    FloorModel(id: '10', name: '10th Floor', areas: ['Kitchen', 'Executive Lounge', 'Pool Bar', 'Swimming Pool', 'General']),
+    FloorModel(id: '9', name: '9th Floor', areas: ['General']),
+    FloorModel(id: '8', name: '8th Floor', areas: ['General']),
+    FloorModel(id: '7', name: '7th Floor', areas: ['General']),
+    FloorModel(id: '6', name: '6th Floor', areas: ['General']),
+    FloorModel(id: '5', name: '5th Floor', areas: ['General']),
+    FloorModel(id: '4', name: '4th Floor', areas: ['General']),
+    FloorModel(id: '3', name: '3rd Floor', areas: ['General']),
+    FloorModel(id: '2', name: '2nd Floor', areas: ['General']),
+    FloorModel(id: '1', name: '1st Floor', areas: ['Meeting Rooms', 'Washrooms', 'Spa', 'Gym', 'General']),
+    FloorModel(id: 'G', name: 'Ground Floor', areas: ["Gemma's", 'Main Kitchen', 'Social Hub', 'Front Office', 'Simba Ballroom', 'General']),
+    FloorModel(id: 'B1', name: 'Basement 1', areas: ['Back Office', 'Finance', 'Staff Cafeteria', 'Parking', 'General']),
+    FloorModel(id: 'B2', name: 'Basement 2', areas: ['Parking', 'Bakery', 'Control Room', 'Laundry', 'General']),
+    FloorModel(id: 'B3', name: 'Basement 3', areas: ['Engineering Workshop', 'Stores', 'Parking', 'General']),
   ];
 
   @override
@@ -206,7 +206,7 @@ class _ManagerDashboardState extends State<ManagerDashboard> {
               width: 22,
               height: 22,
               colorFilter: ColorFilter.mode(
-                isActive ? activeColor : const Color(0xFF94A3B8),
+                isActive ? activeColor : const Color(0xFF475569),
                 BlendMode.srcIn,
               ),
             ),
@@ -221,9 +221,23 @@ class _ManagerDashboardState extends State<ManagerDashboard> {
   Widget _buildBuildingTab() {
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-      itemCount: _floors.length,
+      itemCount: _floors.length + 1, // +1 for header
       itemBuilder: (context, index) {
-        return _buildFloorRow(_floors[index]);
+        if (index == 0) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 24),
+            child: Text(
+              'BUILDING OVERVIEW',
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 2,
+                color: kGrey,
+              ),
+            ),
+          );
+        }
+        return _buildFloorRow(_floors[index - 1]);
       },
     );
   }
@@ -257,8 +271,7 @@ class _ManagerDashboardState extends State<ManagerDashboard> {
   }
 
   Widget _buildFloorRow(FloorModel floor) {
-    final issueCount = _getFloorIssueCount(floor.id);
-    final hasIssue = issueCount > 0;
+    final hasIssue = _getFloorIssueCount(floor.id) > 0;
     final hasRooms = _floorHasRooms(floor.id);
     final floorNum = int.tryParse(floor.id);
 
@@ -282,80 +295,41 @@ class _ManagerDashboardState extends State<ManagerDashboard> {
     }
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 24),
-      child: Column(
+      margin: const EdgeInsets.only(bottom: 20),
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Floor name on top
-          Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: Row(
-              children: [
-                Text(
-                  _getFloorLabel(floor.id).toUpperCase(),
-                  style: GoogleFonts.inter(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                    fontStyle: FontStyle.italic,
-                    color: hasIssue ? kRed : kDark,
-                  ),
+          // Floor number box on left
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: hasIssue ? const Color(0xFFFEF2F2) : Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: hasIssue ? kRed : const Color(0xFFE2E8F0),
+                width: 1.5,
+              ),
+            ),
+            child: Center(
+              child: Text(
+                floor.id,
+                style: GoogleFonts.inter(
+                  fontSize: floor.id.length > 2 ? 12 : 18,
+                  fontWeight: FontWeight.w700,
+                  color: hasIssue ? kRed : kDark,
                 ),
-                if (hasIssue) ...[
-                  const SizedBox(width: 12),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: kRed,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      '$issueCount',
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ],
-              ],
+              ),
             ),
           ),
-          // Row with floor box on left, room grid on right
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  color: hasIssue ? const Color(0xFFFEF2F2) : Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: hasIssue ? kRed : kDark,
-                    width: 2,
-                  ),
-                ),
-                child: Center(
-                  child: Text(
-                    floor.id,
-                    style: GoogleFonts.inter(
-                      fontSize: floor.id.length > 2 ? 14 : 20,
-                      fontWeight: FontWeight.w700,
-                      color: hasIssue ? kRed : kDark,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: components,
-                ),
-              ),
-            ],
+          const SizedBox(width: 10),
+          // Room/area cards grid on right
+          Expanded(
+            child: Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: components,
+            ),
           ),
         ],
       ),

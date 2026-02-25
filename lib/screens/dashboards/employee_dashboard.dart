@@ -83,11 +83,11 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
   // ScrollController for floor view to auto-scroll to issues
   final ScrollController _floorViewScrollController = ScrollController();
 
-  // GlobalKeys for room/area cards to scroll to them
-  final Map<String, GlobalKey> _roomKeys = {};
-
   // Target room to scroll to after navigating to floor
   String? _scrollToRoom;
+
+  // GlobalKey for the target room/area to scroll to (created fresh each time)
+  GlobalKey? _targetRoomKey;
 
   @override
   void dispose() {
@@ -101,6 +101,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
       _currentNavIndex = 0; // Switch to Building tab
       _selectedFloorId = floorId;
       _scrollToRoom = area;
+      _targetRoomKey = GlobalKey(); // Create fresh key
     });
     // Scroll after the frame is built
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -110,17 +111,17 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
 
   /// Scroll to the target room/area
   void _scrollToTargetRoom() {
-    if (_scrollToRoom == null) return;
-    final key = _roomKeys[_scrollToRoom];
-    if (key?.currentContext != null) {
+    if (_scrollToRoom == null || _targetRoomKey == null) return;
+    if (_targetRoomKey!.currentContext != null) {
       Scrollable.ensureVisible(
-        key!.currentContext!,
+        _targetRoomKey!.currentContext!,
         duration: const Duration(milliseconds: 500),
         curve: Curves.easeInOut,
         alignment: 0.3,
       );
     }
     _scrollToRoom = null;
+    _targetRoomKey = null;
   }
 
   /// Open the report issue flow
@@ -140,21 +141,21 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
   // Floor 10: Kitchen, Executive Lounge, Pool Bar, Swimming Pool + Guest Rooms
   // Floor 11: TnT, Kitchen
   final List<FloorModel> _floors = const [
-    FloorModel(id: '11', name: '11th Floor', areas: ['TnT', 'Kitchen', 'Corridor']),
-    FloorModel(id: '10', name: '10th Floor', areas: ['Kitchen', 'Executive Lounge', 'Pool Bar', 'Swimming Pool', 'Corridor']),
-    FloorModel(id: '9', name: '9th Floor', areas: ['Corridor']),
-    FloorModel(id: '8', name: '8th Floor', areas: ['Corridor']),
-    FloorModel(id: '7', name: '7th Floor', areas: ['Corridor']),
-    FloorModel(id: '6', name: '6th Floor', areas: ['Corridor']),
-    FloorModel(id: '5', name: '5th Floor', areas: ['Corridor']),
-    FloorModel(id: '4', name: '4th Floor', areas: ['Corridor']),
-    FloorModel(id: '3', name: '3rd Floor', areas: ['Corridor']),
-    FloorModel(id: '2', name: '2nd Floor', areas: ['Corridor']),
-    FloorModel(id: '1', name: '1st Floor', areas: ['Meeting Rooms', 'Washrooms', 'Spa', 'Gym', 'Corridor']),
-    FloorModel(id: 'G', name: 'Ground Floor', areas: ["Gemma's", 'Main Kitchen', 'Social Hub', 'Front Office', 'Simba Ballroom', 'Corridor']),
-    FloorModel(id: 'B1', name: 'Basement 1', areas: ['Back Office', 'Finance', 'Staff Cafeteria', 'Parking', 'Corridor']),
-    FloorModel(id: 'B2', name: 'Basement 2', areas: ['Parking', 'Bakery', 'Control Room', 'Laundry', 'Corridor']),
-    FloorModel(id: 'B3', name: 'Basement 3', areas: ['Engineering Workshop', 'Stores', 'Parking', 'Corridor']),
+    FloorModel(id: '11', name: '11th Floor', areas: ['TnT', 'Kitchen', 'General']),
+    FloorModel(id: '10', name: '10th Floor', areas: ['Kitchen', 'Executive Lounge', 'Pool Bar', 'Swimming Pool', 'General']),
+    FloorModel(id: '9', name: '9th Floor', areas: ['General']),
+    FloorModel(id: '8', name: '8th Floor', areas: ['General']),
+    FloorModel(id: '7', name: '7th Floor', areas: ['General']),
+    FloorModel(id: '6', name: '6th Floor', areas: ['General']),
+    FloorModel(id: '5', name: '5th Floor', areas: ['General']),
+    FloorModel(id: '4', name: '4th Floor', areas: ['General']),
+    FloorModel(id: '3', name: '3rd Floor', areas: ['General']),
+    FloorModel(id: '2', name: '2nd Floor', areas: ['General']),
+    FloorModel(id: '1', name: '1st Floor', areas: ['Meeting Rooms', 'Washrooms', 'Spa', 'Gym', 'General']),
+    FloorModel(id: 'G', name: 'Ground Floor', areas: ["Gemma's", 'Main Kitchen', 'Social Hub', 'Front Office', 'Simba Ballroom', 'General']),
+    FloorModel(id: 'B1', name: 'Basement 1', areas: ['Back Office', 'Finance', 'Staff Cafeteria', 'Parking', 'General']),
+    FloorModel(id: 'B2', name: 'Basement 2', areas: ['Parking', 'Bakery', 'Control Room', 'Laundry', 'General']),
+    FloorModel(id: 'B3', name: 'Basement 3', areas: ['Engineering Workshop', 'Stores', 'Parking', 'General']),
   ];
 
   /// Check if a floor has active issues (filtered by department visibility)
@@ -266,7 +267,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
               width: 22,
               height: 22,
               colorFilter: ColorFilter.mode(
-                isActive ? activeColor : const Color(0xFF94A3B8),
+                isActive ? activeColor : const Color(0xFF475569),
                 BlendMode.srcIn,
               ),
             ),
@@ -526,9 +527,6 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
   // ─── HOME VIEW ──────────────────────────────────────────────────
 
   Widget _buildHomeView() {
-    final activeIssues = _issues.where((i) => i.isOngoing).toList();
-    final floorsAffected = _issuesByFloor.keys.length;
-
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -536,10 +534,13 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
         children: [
           // Department wrapped card
           _buildDepartmentWrappedCard(),
+          const SizedBox(height: 24),
+          // Report Issue Button
+          _buildReportIssueButton(),
           const SizedBox(height: 32),
-          // Active issues by floor header
+          // Active issues by date
           Text(
-            'ACTIVE ISSUES BY FLOOR',
+            'ACTIVE ISSUES',
             style: GoogleFonts.sora(
               fontSize: 12,
               fontWeight: FontWeight.w800,
@@ -548,9 +549,230 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
             ),
           ),
           const SizedBox(height: 16),
-          // Issues grouped by floor
-          _buildIssuesByFloorList(),
+          // Issues grouped by date
+          _buildIssuesByDateList(),
         ],
+      ),
+    );
+  }
+
+  /// Report Issue button
+  Widget _buildReportIssueButton() {
+    return GestureDetector(
+      onTap: _openReportIssueFlow,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: kDark,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Icon(Icons.add, color: Colors.white, size: 24),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Report an Issue',
+                    style: GoogleFonts.inter(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Tap to report a new issue',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: Colors.white.withOpacity(0.6),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.arrow_forward_ios, color: Colors.white.withOpacity(0.5), size: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Get date label for grouping
+  String _getDateLabel(DateTime date) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final issueDate = DateTime(date.year, date.month, date.day);
+
+    if (issueDate == today) {
+      return 'Today';
+    } else if (issueDate == yesterday) {
+      return 'Yesterday';
+    } else {
+      // Format as "23rd February 2025"
+      final day = date.day;
+      final suffix = _getDaySuffix(day);
+      final months = ['January', 'February', 'March', 'April', 'May', 'June', 
+                      'July', 'August', 'September', 'October', 'November', 'December'];
+      return '$day$suffix ${months[date.month - 1]} ${date.year}';
+    }
+  }
+
+  String _getDaySuffix(int day) {
+    if (day >= 11 && day <= 13) return 'th';
+    switch (day % 10) {
+      case 1: return 'st';
+      case 2: return 'nd';
+      case 3: return 'rd';
+      default: return 'th';
+    }
+  }
+
+  /// Group issues by date
+  Map<String, List<IssueModel>> get _issuesByDate {
+    final activeIssues = _issues.where((i) => i.isOngoing && _canViewIssue(i)).toList();
+    // Sort by date descending (newest first)
+    activeIssues.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    
+    final Map<String, List<IssueModel>> grouped = {};
+    for (final issue in activeIssues) {
+      final label = _getDateLabel(issue.createdAt);
+      grouped.putIfAbsent(label, () => []).add(issue);
+    }
+    return grouped;
+  }
+
+  /// Build issues list grouped by date
+  Widget _buildIssuesByDateList() {
+    final issuesByDate = _issuesByDate;
+    if (issuesByDate.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            children: [
+              Icon(Icons.check_circle_outline, size: 48, color: kGreen.withOpacity(0.5)),
+              const SizedBox(height: 12),
+              const Text(
+                'No active issues',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: issuesByDate.entries.map((entry) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Date header
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12, top: 8),
+              child: Text(
+                entry.key,
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: kDark,
+                ),
+              ),
+            ),
+            // Issues for this date
+            ...entry.value.map((issue) => _buildDateIssueCard(issue)),
+          ],
+        );
+      }).toList(),
+    );
+  }
+
+  /// Issue card for date-grouped view
+  Widget _buildDateIssueCard(IssueModel issue) {
+    final priorityColor = _getPriorityColor(issue.priority);
+    final bgColor = _getPriorityBgColor(issue.priority);
+    final borderColor = _getPriorityBorderColor(issue.priority);
+
+    return GestureDetector(
+      onTap: () => _navigateToFloorAndScrollTo(issue.floor, issue.area),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: bgColor,
+          border: Border.all(color: borderColor, width: 1),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Priority indicator
+            Container(
+              width: 10,
+              height: 10,
+              margin: const EdgeInsets.only(top: 4),
+              decoration: BoxDecoration(
+                color: priorityColor,
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 12),
+            // Content
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    issue.description,
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: kDark,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Text(
+                        'Floor ${issue.floor} • ${issue.area}',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: priorityColor,
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        issue.timeAgo,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF94A3B8),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1048,6 +1270,122 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
             const SizedBox(height: 12),
             ...floorIssues.map((issue) => _buildBreachCard(issue)),
           ],
+          // Floor issue history section
+          const SizedBox(height: 24),
+          _buildFloorHistorySection(floor.id),
+        ],
+      ),
+    );
+  }
+
+  /// Floor-specific resolved issues history section
+  Widget _buildFloorHistorySection(String floorId) {
+    return StreamBuilder<List<IssueModel>>(
+      stream: _issueService.getResolvedIssues(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        
+        final resolvedIssues = (snapshot.data ?? [])
+            .where((issue) => issue.floor == floorId)
+            .toList();
+        
+        if (resolvedIssues.isEmpty) {
+          return const SizedBox.shrink();
+        }
+        
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'FLOOR HISTORY',
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 2, color: Color(0xFF94A3B8)),
+            ),
+            const SizedBox(height: 12),
+            ...resolvedIssues.map((issue) => _buildHistoryCard(issue)),
+          ],
+        );
+      },
+    );
+  }
+
+  /// Build a history card for resolved issues
+  Widget _buildHistoryCard(IssueModel issue) {
+    final resolvedAt = issue.resolvedAt;
+    final dateStr = resolvedAt != null
+        ? '${resolvedAt.day}/${resolvedAt.month}/${resolvedAt.year}'
+        : 'Unknown';
+    
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: kGreen.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  'RESOLVED',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                    color: kGreen,
+                    letterSpacing: 1,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              Text(
+                dateStr,
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: Color(0xFF94A3B8),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            issue.area,
+            style: GoogleFonts.sora(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: kDark,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            issue.description,
+            style: const TextStyle(
+              fontSize: 12,
+              color: Color(0xFF64748B),
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          if (issue.resolvedByName != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Resolved by ${issue.resolvedByName}',
+              style: const TextStyle(
+                fontSize: 10,
+                color: Color(0xFF94A3B8),
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -1093,11 +1431,11 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
 
   /// Individual area card - compact size
   Widget _areaCard(String area, bool hasIssue) {
-    // Register GlobalKey for this area
-    _roomKeys.putIfAbsent(area, () => GlobalKey());
+    // Only use key if this is the target room to scroll to
+    final isTarget = _scrollToRoom == area;
     
     return Container(
-      key: _roomKeys[area],
+      key: isTarget ? _targetRoomKey : null,
       width: 120,
       height: 72,
       padding: const EdgeInsets.all(10),
@@ -1179,12 +1517,12 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
 
   /// Individual room card - compact for mobile grid
   Widget _roomCard(String roomNum, bool hasIssue) {
-    // Register GlobalKey for this room (area name is "Room XXX")
+    // Only use key if this is the target room to scroll to
     final areaName = 'Room $roomNum';
-    _roomKeys.putIfAbsent(areaName, () => GlobalKey());
+    final isTarget = _scrollToRoom == areaName;
     
     return Container(
-      key: _roomKeys[areaName],
+      key: isTarget ? _targetRoomKey : null,
       width: 52,
       height: 44,
       decoration: BoxDecoration(

@@ -13,14 +13,15 @@ class LostItemService {
   CollectionReference get _collection => _firestore.collection('lost_items');
 
   /// Get all unclaimed lost items (real-time stream)
+  /// Filters from all items to avoid Firestore composite index requirement
   Stream<List<LostItemModel>> getUnclaimedItems() {
     return _collection
-        .where('status', isEqualTo: 'Found')
         .orderBy('foundAt', descending: true)
         .snapshots()
         .map((snapshot) {
           return snapshot.docs
               .map((doc) => LostItemModel.fromFirestore(doc))
+              .where((item) => item.status == 'Found')
               .toList();
         });
   }
