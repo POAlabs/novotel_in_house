@@ -76,6 +76,19 @@ class _ManagerDashboardState extends State<ManagerDashboard> {
   // Current view for department drill-down: null = home, 'department:X' = department view
   String? _selectedView;
 
+  // Check if viewing a specific floor
+  bool get _isViewingFloor => _selectedFloorId != null;
+
+  FloorModel? get _selectedFloor {
+    if (!_isViewingFloor) return null;
+    return _floors.firstWhere((f) => f.id == _selectedFloorId, orElse: () => _floors.first);
+  }
+
+  List<IssueModel> get _currentFloorIssues {
+    if (!_isViewingFloor) return [];
+    return _issues.where((i) => i.floor == _selectedFloorId && i.isOngoing).toList();
+  }
+
   // Get current user from auth service
   UserModel? get _currentUser => AuthService().currentUser;
 
@@ -116,9 +129,36 @@ class _ManagerDashboardState extends State<ManagerDashboard> {
     FloorModel(id: 'B3', name: 'Basement 3', areas: ['Engineering Workshop', 'Stores', 'Parking', 'General']),
   ];
 
+  /// Handle back button press - returns true if handled internally
+  bool _handleBackPress() {
+    // If viewing a floor detail, go back to floor list
+    if (_selectedFloorId != null) {
+      setState(() => _selectedFloorId = null);
+      return true;
+    }
+    // If viewing a department, go back to home
+    if (_selectedView != null) {
+      setState(() => _selectedView = null);
+      return true;
+    }
+    // If on Building or Settings tab, go to Home tab
+    if (_currentNavIndex != 1) {
+      setState(() => _currentNavIndex = 1);
+      return true;
+    }
+    // On Home tab - don't handle
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _handleBackPress();
+      },
+      child: Scaffold(
       backgroundColor: kBg,
       body: SafeArea(
         bottom: false,
@@ -133,6 +173,7 @@ class _ManagerDashboardState extends State<ManagerDashboard> {
         ),
       ),
       bottomNavigationBar: _buildBottomNavBar(),
+    ),
     );
   }
 
@@ -140,7 +181,7 @@ class _ManagerDashboardState extends State<ManagerDashboard> {
   Widget _buildCurrentTabContent() {
     switch (_currentNavIndex) {
       case 0:
-        return _buildBuildingTab();
+        return _isViewingFloor ? _buildFloorView() : _buildBuildingTab();
       case 1:
         return _isViewingDepartment ? _buildDepartmentView() : _buildHomeView();
       case 2:
@@ -283,14 +324,14 @@ class _ManagerDashboardState extends State<ManagerDashboard> {
         final roomHasIssue = _issues.any(
           (iss) => iss.area == 'Room $roomNum' && iss.floor == floor.id && iss.isOngoing,
         );
-        components.add(_roomCard(roomNum, roomHasIssue));
+        components.add(_roomCard(roomNum, roomHasIssue, floor.id));
       }
     } else {
       for (final area in floor.areas) {
         final areaHasIssue = _issues.any(
           (i) => i.area == area && i.floor == floor.id && i.isOngoing,
         );
-        components.add(_areaCard(area, areaHasIssue));
+        components.add(_areaCard(area, areaHasIssue, floor.id));
       }
     }
 
@@ -299,25 +340,28 @@ class _ManagerDashboardState extends State<ManagerDashboard> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Floor number box on left
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: hasIssue ? const Color(0xFFFEF2F2) : Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: hasIssue ? kRed : const Color(0xFFE2E8F0),
-                width: 1.5,
+          // Floor number box on left - tappable to go to floor view
+          GestureDetector(
+            onTap: () => setState(() => _selectedFloorId = floor.id),
+            child: Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: hasIssue ? const Color(0xFFFEF2F2) : Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: hasIssue ? kRed : const Color(0xFFE2E8F0),
+                  width: 1.5,
+                ),
               ),
-            ),
-            child: Center(
-              child: Text(
-                floor.id,
-                style: GoogleFonts.inter(
-                  fontSize: floor.id.length > 2 ? 12 : 18,
-                  fontWeight: FontWeight.w700,
-                  color: hasIssue ? kRed : kDark,
+              child: Center(
+                child: Text(
+                  floor.id,
+                  style: GoogleFonts.inter(
+                    fontSize: floor.id.length > 2 ? 12 : 18,
+                    fontWeight: FontWeight.w700,
+                    color: hasIssue ? kRed : kDark,
+                  ),
                 ),
               ),
             ),
@@ -336,79 +380,268 @@ class _ManagerDashboardState extends State<ManagerDashboard> {
     );
   }
 
-  Widget _roomCard(String roomNum, bool hasIssue) {
-    return Container(
-      width: 52,
-      height: 44,
-      decoration: BoxDecoration(
-        color: hasIssue ? const Color(0xFFFEF2F2) : const Color(0xFFF0FDF4),
-        border: Border.all(
-          color: hasIssue ? const Color(0xFFFECACA) : const Color(0xFFBBF7D0),
-          width: 1,
+  Widget _roomCard(String roomNum, bool hasIssue, String floorId) {
+    return GestureDetector(
+      onTap: () => setState(() => _selectedFloorId = floorId),
+      child: Container(
+        width: 52,
+        height: 44,
+        decoration: BoxDecoration(
+          color: hasIssue ? const Color(0xFFFEF2F2) : const Color(0xFFF0FDF4),
+          border: Border.all(
+            color: hasIssue ? const Color(0xFFFECACA) : const Color(0xFFBBF7D0),
+            width: 1,
+          ),
+          borderRadius: BorderRadius.circular(8),
         ),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            roomNum,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: hasIssue ? kRed : kGreen,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              roomNum,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: hasIssue ? kRed : kGreen,
+              ),
             ),
-          ),
-          Icon(
-            hasIssue ? Icons.warning_rounded : Icons.check_circle,
-            size: 10,
-            color: hasIssue ? kRed : kGreen.withOpacity(0.4),
-          ),
-        ],
+            Icon(
+              hasIssue ? Icons.warning_rounded : Icons.check_circle,
+              size: 10,
+              color: hasIssue ? kRed : kGreen.withOpacity(0.4),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _areaCard(String area, bool hasIssue) {
+  Widget _areaCard(String area, bool hasIssue, String floorId) {
+    return GestureDetector(
+      onTap: () => setState(() => _selectedFloorId = floorId),
+      child: Container(
+        width: 120,
+        height: 72,
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: hasIssue ? const Color(0xFFFEF2F2) : const Color(0xFFF0FDF4),
+          border: Border.all(
+            color: hasIssue ? const Color(0xFFFECACA) : const Color(0xFFBBF7D0),
+            width: 1.5,
+          ),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Icon(
+                  Icons.location_on,
+                  size: 12,
+                  color: hasIssue ? kRed.withOpacity(0.6) : kGreen.withOpacity(0.4),
+                ),
+                if (!hasIssue)
+                  Icon(Icons.check_circle, size: 10, color: kGreen.withOpacity(0.3)),
+              ],
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  area.toUpperCase(),
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                    color: hasIssue ? kRed : kGreen,
+                    letterSpacing: -0.3,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  hasIssue ? 'ISSUE' : 'OK',
+                  style: TextStyle(
+                    fontSize: 7,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1,
+                    color: hasIssue ? const Color(0xFFFCA5A5) : kGreen.withOpacity(0.5),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ─── FLOOR VIEW ─────────────────────────────────────────────────────
+
+  Widget _buildFloorView() {
+    final floor = _selectedFloor!;
+    final floorIssues = _currentFloorIssues;
+
+    return Column(
+      children: [
+        // Back header
+        Container(
+          height: 56,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
+          ),
+          child: Row(
+            children: [
+              GestureDetector(
+                onTap: () => setState(() => _selectedFloorId = null),
+                child: Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.arrow_back, size: 18, color: kDark),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                _getFloorLabel(floor.id),
+                style: GoogleFonts.inter(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: kDark,
+                ),
+              ),
+            ],
+          ),
+        ),
+        // Floor content
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Area grid
+                _buildFloorAreaGrid(floor),
+                if (floorIssues.isNotEmpty) ...[
+                  const SizedBox(height: 24),
+                  Text(
+                    'ISSUES ON THIS FLOOR',
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 2,
+                      color: const Color(0xFF94A3B8),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  ...floorIssues.map((issue) => _buildFloorIssueCard(issue)),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFloorAreaGrid(FloorModel floor) {
+    final hasRooms = _floorHasRooms(floor.id);
+    final floorNum = int.tryParse(floor.id);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Areas
+        if (floor.areas.isNotEmpty) ...[
+          Text(
+            'AREAS',
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 2,
+              color: const Color(0xFF94A3B8),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: floor.areas.map((area) {
+              final hasIssue = _issues.any(
+                (i) => i.area == area && i.floor == floor.id && i.isOngoing,
+              );
+              return _floorViewAreaCard(area, hasIssue);
+            }).toList(),
+          ),
+        ],
+        // Rooms
+        if (hasRooms && floorNum != null) ...[
+          const SizedBox(height: 24),
+          Text(
+            'GUEST ROOMS',
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 2,
+              color: const Color(0xFF94A3B8),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: List.generate(40, (i) {
+              final roomNum = '$floorNum${(i + 1).toString().padLeft(2, '0')}';
+              final hasIssue = _issues.any(
+                (iss) => iss.area == 'Room $roomNum' && iss.floor == floor.id && iss.isOngoing,
+              );
+              return _floorViewRoomCard(roomNum, hasIssue);
+            }),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _floorViewAreaCard(String area, bool hasIssue) {
     return Container(
-      width: 120,
-      height: 72,
-      padding: const EdgeInsets.all(10),
+      width: 130,
+      height: 80,
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: hasIssue ? const Color(0xFFFEF2F2) : const Color(0xFFF0FDF4),
         border: Border.all(
           color: hasIssue ? const Color(0xFFFECACA) : const Color(0xFFBBF7D0),
           width: 1.5,
         ),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Icon(
-                Icons.location_on,
-                size: 12,
-                color: hasIssue ? kRed.withOpacity(0.6) : kGreen.withOpacity(0.4),
-              ),
-              if (!hasIssue)
-                Icon(Icons.check_circle, size: 10, color: kGreen.withOpacity(0.3)),
-            ],
+          Icon(
+            Icons.location_on,
+            size: 14,
+            color: hasIssue ? kRed.withOpacity(0.6) : kGreen.withOpacity(0.4),
           ),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
             children: [
               Text(
                 area.toUpperCase(),
                 style: TextStyle(
-                  fontSize: 9,
+                  fontSize: 10,
                   fontWeight: FontWeight.w800,
                   color: hasIssue ? kRed : kGreen,
-                  letterSpacing: -0.3,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -416,13 +649,161 @@ class _ManagerDashboardState extends State<ManagerDashboard> {
               Text(
                 hasIssue ? 'ISSUE' : 'OK',
                 style: TextStyle(
-                  fontSize: 7,
-                  fontWeight: FontWeight.w800,
+                  fontSize: 8,
+                  fontWeight: FontWeight.w700,
                   letterSpacing: 1,
                   color: hasIssue ? const Color(0xFFFCA5A5) : kGreen.withOpacity(0.5),
                 ),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _floorViewRoomCard(String roomNum, bool hasIssue) {
+    return Container(
+      width: 56,
+      height: 48,
+      decoration: BoxDecoration(
+        color: hasIssue ? const Color(0xFFFEF2F2) : const Color(0xFFF0FDF4),
+        border: Border.all(
+          color: hasIssue ? const Color(0xFFFECACA) : const Color(0xFFBBF7D0),
+        ),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            roomNum,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: hasIssue ? kRed : kGreen,
+            ),
+          ),
+          Icon(
+            hasIssue ? Icons.warning_rounded : Icons.check_circle,
+            size: 12,
+            color: hasIssue ? kRed : kGreen.withOpacity(0.4),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFloorIssueCard(IssueModel issue) {
+    final priorityColor = _getPriorityColor(issue.priority);
+    final bgColor = _getPriorityBgColor(issue.priority);
+    final borderColor = _getPriorityBorderColor(issue.priority);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: bgColor,
+        border: Border.all(color: borderColor, width: 1.5),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: priorityColor,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      issue.priority.toUpperCase(),
+                      style: const TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: kAccent.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      issue.department,
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w600,
+                        color: kAccent,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              Text(
+                issue.timeAgo,
+                style: const TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF94A3B8),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Text(
+            issue.description,
+            style: GoogleFonts.inter(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: kDark,
+              height: 1.3,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            issue.area.toUpperCase(),
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1,
+              color: priorityColor,
+            ),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () {
+                if (_currentUser != null) {
+                  showTakeActionSheet(
+                    context: context,
+                    issue: issue,
+                    currentUser: _currentUser!,
+                  );
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: kDark,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 0,
+              ),
+              child: const Text(
+                'TAKE ACTION',
+                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 1),
+              ),
+            ),
           ),
         ],
       ),

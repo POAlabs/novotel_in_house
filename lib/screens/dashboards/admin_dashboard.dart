@@ -117,9 +117,26 @@ class _AdminDashboardState extends State<AdminDashboard> {
     return counts;
   }
 
+  /// Handle back button press - returns true if handled internally
+  bool _handleBackPress() {
+    // If viewing a floor or department, go back to home
+    if (_selectedView != null) {
+      setState(() => _selectedView = null);
+      return true;
+    }
+    // On home view - don't handle
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _handleBackPress();
+      },
+      child: Scaffold(
       backgroundColor: kBg,
       body: SafeArea(
         child: StreamBuilder<List<IssueModel>>(
@@ -144,6 +161,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
           },
         ),
       ),
+    ),
     );
   }
 

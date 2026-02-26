@@ -175,9 +175,34 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
     return _issues.where((i) => i.floor == _selectedFloorId && i.isOngoing && _canViewIssue(i)).toList();
   }
 
+  /// Handle back button press - returns true if handled internally
+  bool _handleBackPress() {
+    // If viewing a floor detail, go back to floor list
+    if (_selectedFloorId != null) {
+      setState(() => _selectedFloorId = null);
+      return true;
+    }
+    // If on Building or Settings tab, go to Home tab
+    if (_currentNavIndex != 1) {
+      setState(() => _currentNavIndex = 1);
+      return true;
+    }
+    // On Home tab - don't handle, let system decide
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (!_handleBackPress()) {
+          // On home tab with nothing to go back to - minimize app instead of exit
+          // This is standard Android behavior for home screens
+        }
+      },
+      child: Scaffold(
       backgroundColor: kBg,
       body: SafeArea(
         bottom: false, // Bottom nav handles its own safe area
@@ -194,6 +219,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
         ),
       ),
       bottomNavigationBar: _buildBottomNavBar(),
+    ),
     );
   }
 
