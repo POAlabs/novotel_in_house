@@ -8,6 +8,7 @@ import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/issue_service.dart';
 import '../../widgets/issue_action_sheets.dart';
+import '../../widgets/analytics/analytics_section.dart';
 
 /// Manager dashboard
 /// Shows 3 department cards - tap to view department issues
@@ -830,11 +831,33 @@ class _ManagerDashboardState extends State<ManagerDashboard> {
       ...allDepartments.where((d) => d != _userDepartment),
     ];
 
+    // Check if user is system admin (sees all departments)
+    final isSystemAdmin = _currentUser?.isSystemAdmin ?? false;
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Analytics section
+          // System admins see all data + department breakdown
+          // Managers see only their department data
+          AnalyticsSection(
+            department: isSystemAdmin ? null : _userDepartment,
+            showDepartmentChart: isSystemAdmin,
+          ),
+          const SizedBox(height: 8),
+          // Departments header
+          Text(
+            'DEPARTMENTS',
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 2,
+              color: const Color(0xFF94A3B8),
+            ),
+          ),
+          const SizedBox(height: 16),
           // All department wrapped cards
           ...orderedDepartments.map((dept) => _buildDepartmentWrappedCard(dept)),
         ],
