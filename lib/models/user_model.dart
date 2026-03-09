@@ -13,6 +13,8 @@ class UserModel {
   final bool isActive;
   final DateTime createdAt;
   final String? createdBy; // UID of admin who created this user
+  final String? fcmToken; // Firebase Cloud Messaging token for push notifications
+  final DateTime? fcmTokenUpdatedAt;
 
   const UserModel({
     required this.uid,
@@ -23,6 +25,8 @@ class UserModel {
     this.isActive = true,
     required this.createdAt,
     this.createdBy,
+    this.fcmToken,
+    this.fcmTokenUpdatedAt,
   });
 
   /// Create from Firestore document
@@ -37,6 +41,8 @@ class UserModel {
       isActive: data['isActive'] ?? true,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       createdBy: data['createdBy'],
+      fcmToken: data['fcmToken'],
+      fcmTokenUpdatedAt: (data['fcmTokenUpdatedAt'] as Timestamp?)?.toDate(),
     );
   }
 
@@ -50,6 +56,8 @@ class UserModel {
       'isActive': isActive,
       'createdAt': Timestamp.fromDate(createdAt),
       'createdBy': createdBy,
+      if (fcmToken != null) 'fcmToken': fcmToken,
+      if (fcmTokenUpdatedAt != null) 'fcmTokenUpdatedAt': Timestamp.fromDate(fcmTokenUpdatedAt!),
     };
   }
 
@@ -63,6 +71,8 @@ class UserModel {
     bool? isActive,
     DateTime? createdAt,
     String? createdBy,
+    String? fcmToken,
+    DateTime? fcmTokenUpdatedAt,
   }) {
     return UserModel(
       uid: uid ?? this.uid,
@@ -73,6 +83,8 @@ class UserModel {
       isActive: isActive ?? this.isActive,
       createdAt: createdAt ?? this.createdAt,
       createdBy: createdBy ?? this.createdBy,
+      fcmToken: fcmToken ?? this.fcmToken,
+      fcmTokenUpdatedAt: fcmTokenUpdatedAt ?? this.fcmTokenUpdatedAt,
     );
   }
 

@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../models/user_model.dart';
 import 'debug_log_service.dart';
+import 'notification_service.dart';
 
 // Authentication service for Firebase
 // Handles user sign-in, sign-out, and auth state
@@ -188,6 +189,10 @@ class AuthService {
           'Sign in successful',
           data: {'uid': user.uid, 'displayName': user.displayName},
         );
+        
+        // Store FCM token and subscribe to notification topics
+        await _setupNotifications(user);
+        
         return user;
       } on FirebaseAuthException catch (e) {
         debugPrint(
@@ -238,6 +243,11 @@ class AuthService {
     );
 
     try {
+      // Clear notifications before signing out
+      if (_currentUser != null) {
+        await _clearNotifications(_currentUser!);
+      }
+      
       if (_firebaseInitialized) {
         await _auth.signOut();
       }
@@ -253,6 +263,48 @@ class AuthService {
         isError: true,
       );
       throw Exception('Sign out failed: ${e.toString()}');
+    }
+  }
+  
+  /// Set up push notifications for a user after login
+  Future<void> _setupNotifications(UserModel user) async {
+    try {
+      final notificationService = NotificationService();
+      
+      // Store FCM token in Firestore
+      await notificationService.storeFcmToken(user.uid);
+      
+      // Subscribe to relevant topics based on department and role
+      await notificationService.subscribeToUserTopics(
+        department: user.department,
+        role: user.role.displayName,
+      );
+      
+      debugPrint('✅ [AUTH_SERVICE] Notifications set up for ${user.displayName}');
+    } catch (e) {
+      // Don't fail login if notifications fail
+      debugPrint('⚠️ [AUTH_SERVICE] Failed to set up notifications: $e');
+    }
+  }
+  
+  /// Clear push notifications on logout
+  Future<void> _clearNotifications(UserModel user) async {
+    try {
+      final notificationService = NotificationService();
+      
+      // Clear FCM token from Firestore
+      await notificationService.clearFcmToken(user.uid);
+      
+      // Unsubscribe from all topics
+      await notificationService.unsubscribeFromAllTopics(
+        department: user.department,
+        role: user.role.displayName,
+      );
+      
+      debugPrint('✅ [AUTH_SERVICE] Notifications cleared for ${user.displayName}');
+    } catch (e) {
+      // Don't fail logout if notification cleanup fails
+      debugPrint('⚠️ [AUTH_SERVICE] Failed to clear notifications: $e');
     }
   }
 

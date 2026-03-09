@@ -3,6 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'config/routes.dart';
 import 'services/auth_service.dart';
+import 'services/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,6 +17,10 @@ void main() async {
     );
     AuthService.firebaseInitialized = true;
     debugPrint('Firebase initialized successfully');
+    
+    // Initialize push notifications after Firebase is ready
+    await NotificationService().initialize();
+    debugPrint('Notification service initialized');
   } catch (e) {
     debugPrint('Firebase initialization failed: $e');
     debugPrint('Running in demo mode with dummy accounts');
