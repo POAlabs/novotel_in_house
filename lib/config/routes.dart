@@ -74,7 +74,7 @@ class _AuthGateScreenState extends State<_AuthGateScreen> {
         }
       }
       Navigator.pushReplacementNamed(context, route);
-    }
+    } else {
       // No active session — show sign-in
       Navigator.pushReplacementNamed(context, AppRoutes.signIn);
     }
