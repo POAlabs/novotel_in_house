@@ -56,20 +56,25 @@ class _AuthGateScreenState extends State<_AuthGateScreen> {
 
     if (user != null) {
       // Session restored — go directly to the correct dashboard
+      // IT department gets admin access regardless of role
       String route;
-      switch (user.role) {
-        case UserRole.systemAdmin:
-          route = AppRoutes.adminDashboard;
-          break;
-        case UserRole.manager:
-          route = AppRoutes.managerDashboard;
-          break;
-        case UserRole.staff:
-          route = AppRoutes.employeeDashboard;
-          break;
+      if (user.department == Departments.it) {
+        route = AppRoutes.adminDashboard;
+      } else {
+        switch (user.role) {
+          case UserRole.systemAdmin:
+            route = AppRoutes.adminDashboard;
+            break;
+          case UserRole.manager:
+            route = AppRoutes.managerDashboard;
+            break;
+          case UserRole.staff:
+            route = AppRoutes.employeeDashboard;
+            break;
+        }
       }
       Navigator.pushReplacementNamed(context, route);
-    } else {
+    }
       // No active session — show sign-in
       Navigator.pushReplacementNamed(context, AppRoutes.signIn);
     }

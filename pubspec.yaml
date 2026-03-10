@@ -28,6 +28,9 @@ dependencies:
   
   # Charts
   fl_chart: ^0.69.0
+  
+  # HTTP requests
+  http: ^1.2.0
 
 dev_dependencies:
   flutter_test:

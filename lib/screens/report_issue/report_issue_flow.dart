@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/issue_service.dart';
+import '../../services/whatsapp_service.dart';
 import 'select_location_step.dart';
 import 'select_department_step.dart';
 import 'issue_details_step.dart';
@@ -26,6 +27,7 @@ class ReportIssueFlow extends StatefulWidget {
 class _ReportIssueFlowState extends State<ReportIssueFlow> {
   final PageController _pageController = PageController();
   final IssueService _issueService = IssueService();
+  final WhatsAppService _whatsAppService = WhatsAppService();
   
   int _currentStep = 0;
   bool _isSubmitting = false;
@@ -101,6 +103,16 @@ class _ReportIssueFlowState extends State<ReportIssueFlow> {
         department: _selectedDepartment!,
         priority: _priority,
         reporter: _currentUser!,
+      );
+
+      // Send WhatsApp notification (don't await to not block UI)
+      _whatsAppService.sendIssueNotification(
+        department: _selectedDepartment!,
+        reportedByName: _currentUser!.displayName,
+        floor: _selectedFloor!,
+        area: _selectedArea!,
+        priority: _priority,
+        description: _description!,
       );
 
       if (mounted) {

@@ -96,6 +96,12 @@ class UserModel {
 
   /// Check if user is regular staff
   bool get isStaff => role == UserRole.staff;
+  
+  /// Check if user is IT department (IT gets admin access)
+  bool get isIT => department == Departments.it;
+  
+  /// Check if user has admin privileges (systemAdmin OR IT department)
+  bool get hasAdminAccess => isSystemAdmin || isIT;
 
   @override
   String toString() {

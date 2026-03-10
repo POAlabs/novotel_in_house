@@ -54,17 +54,22 @@ class _SignInPageState extends State<SignInPage> {
       if (!mounted) return;
 
       // Route based on user role
+      // IT department gets admin access regardless of role
       String route;
-      switch (user.role) {
-        case UserRole.systemAdmin:
-          route = AppRoutes.adminDashboard;
-          break;
-        case UserRole.manager:
-          route = AppRoutes.managerDashboard;
-          break;
-        case UserRole.staff:
-          route = AppRoutes.employeeDashboard;
-          break;
+      if (user.department == 'IT') {
+        route = AppRoutes.adminDashboard;
+      } else {
+        switch (user.role) {
+          case UserRole.systemAdmin:
+            route = AppRoutes.adminDashboard;
+            break;
+          case UserRole.manager:
+            route = AppRoutes.managerDashboard;
+            break;
+          case UserRole.staff:
+            route = AppRoutes.employeeDashboard;
+            break;
+        }
       }
 
       Navigator.pushReplacementNamed(context, route);
