@@ -7,6 +7,7 @@ import '../../models/floor_model.dart';
 import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/issue_service.dart';
+import '../../config/departments.dart';
 import '../../widgets/issue_action_sheets.dart';
 import '../../widgets/analytics/analytics_section.dart';
 
@@ -825,7 +826,7 @@ class _ManagerDashboardState extends State<ManagerDashboard> {
 
   Widget _buildHomeView() {
     // Order departments: user's department first, then others
-    final allDepartments = ['Engineering', 'IT', 'Housekeeping'];
+    final allDepartments = Departments.all;
     final orderedDepartments = <String>[
       _userDepartment,
       ...allDepartments.where((d) => d != _userDepartment),
