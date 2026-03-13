@@ -53,24 +53,11 @@ class _SignInPageState extends State<SignInPage> {
 
       if (!mounted) return;
 
-      // Route based on user role
-      // IT department gets admin access regardless of role
-      String route;
-      if (user.department == 'IT') {
-        route = AppRoutes.adminDashboard;
-      } else {
-        switch (user.role) {
-          case UserRole.systemAdmin:
-            route = AppRoutes.adminDashboard;
-            break;
-          case UserRole.manager:
-            route = AppRoutes.managerDashboard;
-            break;
-          case UserRole.staff:
-            route = AppRoutes.employeeDashboard;
-            break;
-        }
-      }
+      // Route to appropriate dashboard based on department and role
+      final route = AppRoutes.getDashboardRoute(
+        department: user.department,
+        role: user.role,
+      );
 
       Navigator.pushReplacementNamed(context, route);
     } catch (e) {
@@ -120,18 +107,14 @@ class _SignInPageState extends State<SignInPage> {
   Widget _buildHeader() {
     return Column(
       children: [
-        // Logo icon
-        Container(
-          width: 72,
-          height: 72,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: kAccent.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: SvgPicture.asset(
-            'assets/building.svg',
-            colorFilter: const ColorFilter.mode(kAccent, BlendMode.srcIn),
+        // Heartist image (same as splash screen)
+        ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: Image.asset(
+            'assets/heartist_image.jpeg',
+            width: 180,
+            height: 180,
+            fit: BoxFit.cover,
           ),
         ),
         const SizedBox(height: 24),

@@ -535,6 +535,8 @@ class _EditUserScreenState extends State<EditUserScreen> {
         return const Color(0xFF8B5CF6);
       case UserRole.manager:
         return kAccent;
+      case UserRole.supervisor:
+        return const Color(0xFFF59E0B); // Orange/Amber for supervisors
       case UserRole.staff:
         return kGreen;
     }

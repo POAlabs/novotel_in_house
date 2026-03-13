@@ -94,6 +94,9 @@ class UserModel {
   /// Check if user is a manager
   bool get isManager => role == UserRole.manager;
 
+  /// Check if user is a supervisor
+  bool get isSupervisor => role == UserRole.supervisor;
+
   /// Check if user is regular staff
   bool get isStaff => role == UserRole.staff;
   
@@ -102,6 +105,15 @@ class UserModel {
   
   /// Check if user has admin privileges (systemAdmin OR IT department)
   bool get hasAdminAccess => isSystemAdmin || isIT;
+  
+  /// Check if user is in Housekeeping department
+  bool get isHousekeeping => department == Departments.housekeeping;
+  
+  /// Check if user is in Front Office department
+  bool get isFrontOffice => department == Departments.frontOffice;
+  
+  /// Check if user can approve room cleaning (supervisor or manager in Housekeeping)
+  bool get canApproveRooms => isHousekeeping && (isSupervisor || isManager);
 
   @override
   String toString() {

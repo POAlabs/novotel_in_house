@@ -36,32 +36,14 @@ class AboutScreen extends StatelessWidget {
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
-            const SizedBox(height: 20),
-            
-            // App Logo placeholder - will be replaced with actual image
-            Container(
-              width: 120,
-              height: 120,
-              decoration: BoxDecoration(
-                color: kNavy,
-                borderRadius: BorderRadius.circular(28),
-                boxShadow: [
-                  BoxShadow(
-                    color: kNavy.withOpacity(0.3),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: Center(
-                child: Text(
-                  'NH',
-                  style: GoogleFonts.inter(
-                    fontSize: 48,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                  ),
-                ),
+            // Heartist image at the top
+            ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: Image.asset(
+                'assets/heartist_image.jpeg',
+                width: double.infinity,
+                height: 200,
+                fit: BoxFit.cover,
               ),
             ),
             
@@ -146,6 +128,17 @@ class AboutScreen extends StatelessWidget {
                       fontWeight: FontWeight.w600,
                       color: kLightGrey,
                       letterSpacing: 2,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  // POA Labs logo
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Image.asset(
+                      'assets/logo.png',
+                      width: 80,
+                      height: 80,
+                      fit: BoxFit.contain,
                     ),
                   ),
                   const SizedBox(height: 12),

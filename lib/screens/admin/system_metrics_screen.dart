@@ -68,7 +68,7 @@ class _SystemMetricsScreenState extends State<SystemMetricsScreen> {
                 _buildServiceCard(
                   icon: Icons.chat_bubble_outline,
                   title: 'WhatsApp Messages',
-                  subtitle: 'Whapi.cloud API',
+                  subtitle: 'Whapi.cloud API (\$40/mo subscription)',
                   count: metrics.whatsAppMessages,
                   cost: metrics.whatsAppCost,
                   color: kGreen,
@@ -170,7 +170,13 @@ class _SystemMetricsScreenState extends State<SystemMetricsScreen> {
     );
   }
 
+  // WhatsApp monthly subscription cost
+  static const double kWhatsAppMonthlyCost = 40.0;
+
   Widget _buildTotalCostCard(UsageMetrics metrics) {
+    // Calculate total including WhatsApp monthly subscription
+    final totalWithWhatsApp = metrics.totalCost + kWhatsAppMonthlyCost;
+    
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
@@ -198,7 +204,7 @@ class _SystemMetricsScreenState extends State<SystemMetricsScreen> {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                '\$${metrics.totalCost.toStringAsFixed(4)}',
+                '\$${totalWithWhatsApp.toStringAsFixed(2)}',
                 style: GoogleFonts.inter(
                   fontSize: 36,
                   fontWeight: FontWeight.w800,
@@ -219,27 +225,14 @@ class _SystemMetricsScreenState extends State<SystemMetricsScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.info_outline, size: 16, color: Colors.white.withOpacity(0.7)),
-                const SizedBox(width: 8),
-                Text(
-                  'Sandbox mode - No actual charges',
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.white.withOpacity(0.8),
-                  ),
-                ),
-              ],
+          const SizedBox(height: 12),
+          // Cost breakdown
+          Text(
+            'Includes \$40/mo WhatsApp subscription',
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: Colors.white.withOpacity(0.6),
             ),
           ),
         ],
@@ -491,19 +484,11 @@ class _SystemMetricsScreenState extends State<SystemMetricsScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          _buildPricingRow('WhatsApp (Whapi.cloud)', '\$0.008 per message'),
+          _buildPricingRow('WhatsApp Subscription', '\$40.00 per month'),
+          _buildPricingRow('WhatsApp Messages', '\$0.008 per message'),
           _buildPricingRow('Firestore Reads', '\$0.06 per 100K'),
           _buildPricingRow('Firestore Writes', '\$0.18 per 100K'),
           _buildPricingRow('FCM Notifications', 'Free'),
-          const SizedBox(height: 8),
-          Text(
-            'Note: Currently using sandbox mode. Production pricing may vary.',
-            style: GoogleFonts.inter(
-              fontSize: 11,
-              fontStyle: FontStyle.italic,
-              color: kGrey,
-            ),
-          ),
         ],
       ),
     );

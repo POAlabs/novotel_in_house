@@ -5,11 +5,15 @@ import '../settings_screen.dart';
 import '../../models/issue_model.dart';
 import '../../models/floor_model.dart';
 import '../../models/user_model.dart';
+import '../../models/room_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/issue_service.dart';
+import '../../services/room_service.dart';
 import '../../config/departments.dart';
 import '../../widgets/issue_action_sheets.dart';
 import '../../widgets/analytics/analytics_section.dart';
+import '../housekeeping/room_cleaning_screen.dart';
+import '../housekeeping/room_inspection_screen.dart';
 
 /// Manager dashboard
 /// Shows 3 department cards - tap to view department issues
@@ -96,9 +100,15 @@ class _ManagerDashboardState extends State<ManagerDashboard> {
 
   // Issue service for Firebase data
   final IssueService _issueService = IssueService();
+  
+  // Room service for room statuses
+  final RoomService _roomService = RoomService();
 
   // Live issues from Firebase
   List<IssueModel> _issues = [];
+  
+  // Live rooms from Firebase
+  Map<String, RoomModel> _roomsMap = {};
 
   bool get _isViewingDepartment => _selectedView != null && _selectedView!.startsWith('department:');
   String? get _selectedDepartment => _isViewingDepartment ? _selectedView!.split(':')[1] : null;
@@ -166,11 +176,19 @@ class _ManagerDashboardState extends State<ManagerDashboard> {
         bottom: false,
         child: StreamBuilder<List<IssueModel>>(
           stream: _issueService.getAllOngoingIssues(),
-          builder: (context, snapshot) {
-            if (snapshot.hasData) {
-              _issues = snapshot.data!;
+          builder: (context, issueSnapshot) {
+            if (issueSnapshot.hasData) {
+              _issues = issueSnapshot.data!;
             }
-            return _buildCurrentTabContent();
+            return StreamBuilder<List<RoomModel>>(
+              stream: _roomService.getAllRooms(),
+              builder: (context, roomSnapshot) {
+                if (roomSnapshot.hasData) {
+                  _roomsMap = {for (var room in roomSnapshot.data!) room.roomNumber: room};
+                }
+                return _buildCurrentTabContent();
+              },
+            );
           },
         ),
       ),
@@ -261,6 +279,137 @@ class _ManagerDashboardState extends State<ManagerDashboard> {
 
   // ─── BUILDING TAB ────────────────────────────────────────────────
 
+  // View filter mode for manager: 'department', 'all'
+  String _viewMode = 'department';
+
+  // Get current user's department
+  String get _userDepartment => _currentUser?.department ?? 'Engineering';
+
+  /// Check if current user can view this issue (department filtering)
+  bool _canViewIssue(IssueModel issue) {
+    if (_currentUser == null) return false;
+    
+    // If viewing all departments, show all issues
+    if (_viewMode == 'all') {
+      return true;
+    }
+    
+    // Department mode: only show issues for user's department
+    return issue.department == _userDepartment;
+  }
+
+  /// Show filter dialog for managers
+  void _showFilterDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'View Filter',
+          style: GoogleFonts.inter(
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            color: kDark,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildFilterOption(
+              title: 'My Department',
+              subtitle: 'View issues from $_userDepartment only',
+              icon: Icons.person_outline,
+              isSelected: _viewMode == 'department',
+              onTap: () {
+                setState(() => _viewMode = 'department');
+                Navigator.pop(context);
+              },
+            ),
+            const SizedBox(height: 12),
+            _buildFilterOption(
+              title: 'All Departments',
+              subtitle: 'View issues from all departments',
+              icon: Icons.groups_outlined,
+              isSelected: _viewMode == 'all',
+              onTap: () {
+                setState(() => _viewMode = 'all');
+                Navigator.pop(context);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Build a filter option tile
+  Widget _buildFilterOption({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isSelected ? kAccent.withOpacity(0.1) : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? kAccent : const Color(0xFFE2E8F0),
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: isSelected ? kAccent : const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                icon,
+                color: isSelected ? Colors.white : const Color(0xFF64748B),
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: kDark,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w400,
+                      color: const Color(0xFF64748B),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (isSelected)
+              Icon(Icons.check_circle, color: kAccent, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildBuildingTab() {
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
@@ -269,14 +418,63 @@ class _ManagerDashboardState extends State<ManagerDashboard> {
         if (index == 0) {
           return Padding(
             padding: const EdgeInsets.only(bottom: 24),
-            child: Text(
-              'BUILDING OVERVIEW',
-              style: GoogleFonts.inter(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 2,
-                color: kGrey,
-              ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'BUILDING OVERVIEW',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 2,
+                    color: kAccent,
+                  ),
+                ),
+                // Filter button
+                GestureDetector(
+                  onTap: _showFilterDialog,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: _viewMode != 'department' 
+                          ? kAccent.withOpacity(0.1)
+                          : const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: _viewMode != 'department'
+                            ? kAccent
+                            : const Color(0xFFE2E8F0),
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.filter_list_rounded,
+                          size: 14,
+                          color: _viewMode != 'department'
+                              ? kAccent
+                              : const Color(0xFF64748B),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          _viewMode == 'department' 
+                              ? 'Filter' 
+                              : 'All Depts',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: _viewMode != 'department'
+                                ? kAccent
+                                : const Color(0xFF64748B),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
           );
         }
@@ -305,7 +503,7 @@ class _ManagerDashboardState extends State<ManagerDashboard> {
   }
 
   int _getFloorIssueCount(String floorId) {
-    return _issues.where((i) => i.floor == floorId && i.isOngoing).length;
+    return _issues.where((i) => i.floor == floorId && i.isOngoing && _canViewIssue(i)).length;
   }
 
   bool _floorHasRooms(String floorId) {
@@ -383,15 +581,18 @@ class _ManagerDashboardState extends State<ManagerDashboard> {
   }
 
   Widget _roomCard(String roomNum, bool hasIssue, String floorId) {
+    final room = _roomsMap[roomNum];
+    final status = room?.status ?? RoomStatus.ready;
+    
     return GestureDetector(
-      onTap: () => setState(() => _selectedFloorId = floorId),
+      onTap: () => _onRoomTap(roomNum, floorId),
       child: Container(
         width: 52,
         height: 44,
         decoration: BoxDecoration(
-          color: hasIssue ? const Color(0xFFFEF2F2) : const Color(0xFFF0FDF4),
+          color: status.backgroundColor,
           border: Border.all(
-            color: hasIssue ? const Color(0xFFFECACA) : const Color(0xFFBBF7D0),
+            color: status.borderColor,
             width: 1,
           ),
           borderRadius: BorderRadius.circular(8),
@@ -404,18 +605,96 @@ class _ManagerDashboardState extends State<ManagerDashboard> {
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
-                color: hasIssue ? kRed : kGreen,
+                color: status.color,
               ),
             ),
             Icon(
-              hasIssue ? Icons.warning_rounded : Icons.check_circle,
+              _getRoomStatusIcon(status),
               size: 10,
-              color: hasIssue ? kRed : kGreen.withOpacity(0.4),
+              color: status.color.withOpacity(0.7),
             ),
           ],
         ),
       ),
     );
+  }
+  
+  /// Get appropriate icon for room status
+  IconData _getRoomStatusIcon(RoomStatus status) {
+    switch (status) {
+      case RoomStatus.occupied:
+        return Icons.person;
+      case RoomStatus.checkout:
+        return Icons.cleaning_services;
+      case RoomStatus.cleaning:
+        return Icons.autorenew;
+      case RoomStatus.inspection:
+        return Icons.search;
+      case RoomStatus.ready:
+        return Icons.check_circle;
+    }
+  }
+  
+  /// Handle room card tap - navigate to appropriate screen based on status and user role
+  void _onRoomTap(String roomNum, String floorId) {
+    final room = _roomsMap[roomNum];
+    if (room == null) {
+      setState(() => _selectedFloorId = floorId);
+      return;
+    }
+    
+    final user = _currentUser;
+    if (user == null) return;
+    
+    // Navigate based on room status and user permissions
+    switch (room.status) {
+      case RoomStatus.checkout:
+        // Housekeeping staff can start cleaning
+        if (user.department == 'Housekeeping' || user.isSystemAdmin) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => RoomCleaningScreen(roomId: room.id),
+            ),
+          );
+        } else {
+          setState(() => _selectedFloorId = floorId);
+        }
+        break;
+      case RoomStatus.cleaning:
+        // The cleaner or supervisor can continue
+        if (room.cleaningStartedBy == user.uid || 
+            user.role == UserRole.supervisor || 
+            user.role == UserRole.manager ||
+            user.isSystemAdmin) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => RoomCleaningScreen(roomId: room.id),
+            ),
+          );
+        } else {
+          setState(() => _selectedFloorId = floorId);
+        }
+        break;
+      case RoomStatus.inspection:
+        // Supervisors and managers can inspect
+        if (user.role == UserRole.supervisor || 
+            user.role == UserRole.manager ||
+            user.isSystemAdmin) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => RoomInspectionScreen(roomId: room.id),
+            ),
+          );
+        } else {
+          setState(() => _selectedFloorId = floorId);
+        }
+        break;
+      default:
+        setState(() => _selectedFloorId = floorId);
+    }
   }
 
   Widget _areaCard(String area, bool hasIssue, String floorId) {
@@ -786,33 +1065,39 @@ class _ManagerDashboardState extends State<ManagerDashboard> {
   }
 
   Widget _floorViewRoomCard(String roomNum, bool hasIssue) {
-    return Container(
-      width: 56,
-      height: 48,
-      decoration: BoxDecoration(
-        color: hasIssue ? const Color(0xFFFEF2F2) : const Color(0xFFF0FDF4),
-        border: Border.all(
-          color: hasIssue ? const Color(0xFFFECACA) : const Color(0xFFBBF7D0),
+    final room = _roomsMap[roomNum];
+    final status = room?.status ?? RoomStatus.ready;
+    
+    return GestureDetector(
+      onTap: room != null ? () => _onRoomTap(roomNum, room.floor) : null,
+      child: Container(
+        width: 56,
+        height: 48,
+        decoration: BoxDecoration(
+          color: status.backgroundColor,
+          border: Border.all(
+            color: status.borderColor,
+          ),
+          borderRadius: BorderRadius.circular(10),
         ),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            roomNum,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: hasIssue ? kRed : kGreen,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              roomNum,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: status.color,
+              ),
             ),
-          ),
-          Icon(
-            hasIssue ? Icons.warning_rounded : Icons.check_circle,
-            size: 12,
-            color: hasIssue ? kRed : kGreen.withOpacity(0.4),
-          ),
-        ],
+            Icon(
+              _getRoomStatusIcon(status),
+              size: 12,
+              color: status.color.withOpacity(0.7),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -932,9 +1217,6 @@ class _ManagerDashboardState extends State<ManagerDashboard> {
       ),
     );
   }
-
-  // Get current user's department
-  String get _userDepartment => _currentUser?.department ?? 'Engineering';
 
   /// Get issues count in the last N days for a specific department
   int _getIssueCountInLastDays(String department, int days) {

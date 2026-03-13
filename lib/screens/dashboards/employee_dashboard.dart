@@ -7,9 +7,14 @@ import '../report_issue/report_issue_flow.dart';
 import '../../models/floor_model.dart';
 import '../../models/issue_model.dart';
 import '../../models/user_model.dart';
+import '../../models/room_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/issue_service.dart';
+import '../../services/room_service.dart';
+import '../../config/departments.dart';
 import '../../widgets/issue_action_sheets.dart';
+import '../housekeeping/room_cleaning_screen.dart';
+import '../housekeeping/room_inspection_screen.dart';
 
 /// Employee dashboard
 /// Floor diagnostic system with bottom navigation
@@ -73,14 +78,23 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> with TickerProvid
   // Selected floor in Building tab (null = show floor list)
   String? _selectedFloorId;
 
+  // View filter mode: 'department', 'all', 'arrivals'
+  String _viewMode = 'department';
+
   // Get current user from auth service
   UserModel? get _currentUser => AuthService().currentUser;
 
   // Issue service for Firebase data
   final IssueService _issueService = IssueService();
+  
+  // Room service for room statuses
+  final RoomService _roomService = RoomService();
 
   // Live issues from Firebase
   List<IssueModel> _issues = [];
+  
+  // Live rooms from Firebase
+  Map<String, RoomModel> _roomsMap = {};
 
   // ScrollController for floor view to auto-scroll to issues
   final ScrollController _floorViewScrollController = ScrollController();
@@ -257,13 +271,21 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> with TickerProvid
         bottom: false, // Bottom nav handles its own safe area
         child: StreamBuilder<List<IssueModel>>(
           stream: _issueService.getAllOngoingIssues(),
-          builder: (context, snapshot) {
+          builder: (context, issueSnapshot) {
             // Update local issues list when data changes
-            if (snapshot.hasData) {
-              _issues = snapshot.data!;
+            if (issueSnapshot.hasData) {
+              _issues = issueSnapshot.data!;
             }
 
-            return _buildCurrentTabContent();
+            return StreamBuilder<List<RoomModel>>(
+              stream: _roomService.getAllRooms(),
+              builder: (context, roomSnapshot) {
+                if (roomSnapshot.hasData) {
+                  _roomsMap = {for (var room in roomSnapshot.data!) room.roomNumber: room};
+                }
+                return _buildCurrentTabContent();
+              },
+            );
           },
         ),
       ),
@@ -402,30 +424,244 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> with TickerProvid
   /// Check if current user can view this issue (department filtering)
   bool _canViewIssue(IssueModel issue) {
     if (_currentUser == null) return false;
-    // System admins and managers can see all issues
+    
+    // If viewing all departments, show all issues
+    if (_viewMode == 'all') {
+      return true;
+    }
+    
+    // System admins and managers can see all issues by default
     if (_currentUser!.isSystemAdmin || _currentUser!.role.name == 'manager') {
       return true;
     }
+    
     // Staff can only see issues for their department
     return issue.department == _currentDepartment;
+  }
+
+  /// Show filter dialog
+  void _showFilterDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'View Filter',
+          style: GoogleFonts.inter(
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            color: kDark,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildFilterOption(
+              title: 'My Department',
+              subtitle: 'View issues from $_currentDepartment only',
+              icon: Icons.person_outline,
+              isSelected: _viewMode == 'department',
+              onTap: () {
+                setState(() => _viewMode = 'department');
+                Navigator.pop(context);
+              },
+            ),
+            const SizedBox(height: 12),
+            _buildFilterOption(
+              title: 'All Departments',
+              subtitle: 'View issues from all departments',
+              icon: Icons.groups_outlined,
+              isSelected: _viewMode == 'all',
+              onTap: () {
+                setState(() => _viewMode = 'all');
+                Navigator.pop(context);
+              },
+            ),
+            const SizedBox(height: 12),
+            _buildFilterOption(
+              title: 'Arrivals',
+              subtitle: 'View room readiness status',
+              icon: Icons.hotel_outlined,
+              isSelected: _viewMode == 'arrivals',
+              isComingSoon: true,
+              onTap: () {
+                // Coming soon - do nothing for now
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Arrivals view coming soon!'),
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                );
+                Navigator.pop(context);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Build a filter option tile
+  Widget _buildFilterOption({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+    bool isComingSoon = false,
+  }) {
+    const blueColor = Color(0xFF3B82F6);
+    
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isSelected ? blueColor.withOpacity(0.1) : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? blueColor : const Color(0xFFE2E8F0),
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: isSelected ? blueColor : const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                icon,
+                color: isSelected ? Colors.white : const Color(0xFF64748B),
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        title,
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: kDark,
+                        ),
+                      ),
+                      if (isComingSoon) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF59E0B).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            'SOON',
+                            style: TextStyle(
+                              fontSize: 8,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFFF59E0B),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w400,
+                      color: const Color(0xFF64748B),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (isSelected)
+              Icon(Icons.check_circle, color: blueColor, size: 20),
+          ],
+        ),
+      ),
+    );
   }
 
   /// Building overview — structure matching screenshot
   Widget _buildFloorListView() {
     return CustomScrollView(
       slivers: [
-        // ── Header ──────────────────────────────────
+        // ── Header with filter button ──────────────────────────────────
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
-            child: Text(
-              'BUILDING OVERVIEW',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 3,
-                color: const Color(0xFF3B82F6),
-              ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'BUILDING OVERVIEW',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 3,
+                    color: const Color(0xFF3B82F6),
+                  ),
+                ),
+                // Filter button
+                GestureDetector(
+                  onTap: _showFilterDialog,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: _viewMode != 'department' 
+                          ? const Color(0xFF3B82F6).withOpacity(0.1)
+                          : const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: _viewMode != 'department'
+                            ? const Color(0xFF3B82F6)
+                            : const Color(0xFFE2E8F0),
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.filter_list_rounded,
+                          size: 14,
+                          color: _viewMode != 'department'
+                              ? const Color(0xFF3B82F6)
+                              : const Color(0xFF64748B),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          _viewMode == 'department' 
+                              ? 'Filter' 
+                              : _viewMode == 'all' 
+                                  ? 'All Depts' 
+                                  : 'Arrivals',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: _viewMode != 'department'
+                                ? const Color(0xFF3B82F6)
+                                : const Color(0xFF64748B),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -527,12 +763,90 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> with TickerProvid
     );
   }
 
-  /// Clickable room card that navigates to floor view
+  /// Clickable room card that navigates to floor view or room action screen
   Widget _buildClickableRoomCard(String floorId, String roomNum, bool hasIssue) {
     return GestureDetector(
-      onTap: () => setState(() => _selectedFloorId = floorId),
+      onTap: () => _onRoomTap(roomNum, floorId),
       child: _roomCard(roomNum, hasIssue),
     );
+  }
+  
+  /// Handle room card tap - navigate to appropriate screen based on status and user role
+  void _onRoomTap(String roomNum, String floorId) {
+    final room = _roomsMap[roomNum];
+    if (room == null) {
+      setState(() => _selectedFloorId = floorId);
+      return;
+    }
+    
+    final user = _currentUser;
+    if (user == null) return;
+    
+    // Navigate based on room status and user permissions
+    switch (room.status) {
+      case RoomStatus.checkout:
+        // Housekeeping staff can start cleaning
+        if (user.department == 'Housekeeping' || user.isSystemAdmin) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => RoomCleaningScreen(roomId: room.id),
+            ),
+          );
+        } else {
+          setState(() => _selectedFloorId = floorId);
+        }
+        break;
+      case RoomStatus.cleaning:
+        // The cleaner or supervisor can continue
+        if (room.cleaningStartedBy == user.uid || 
+            user.role == UserRole.supervisor || 
+            user.role == UserRole.manager ||
+            user.isSystemAdmin) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => RoomCleaningScreen(roomId: room.id),
+            ),
+          );
+        } else {
+          setState(() => _selectedFloorId = floorId);
+        }
+        break;
+      case RoomStatus.inspection:
+        // Supervisors and managers can inspect
+        if (user.role == UserRole.supervisor || 
+            user.role == UserRole.manager ||
+            user.isSystemAdmin) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => RoomInspectionScreen(roomId: room.id),
+            ),
+          );
+        } else {
+          setState(() => _selectedFloorId = floorId);
+        }
+        break;
+      default:
+        setState(() => _selectedFloorId = floorId);
+    }
+  }
+  
+  /// Get appropriate icon for room status
+  IconData _getRoomStatusIcon(RoomStatus status) {
+    switch (status) {
+      case RoomStatus.occupied:
+        return Icons.person;
+      case RoomStatus.checkout:
+        return Icons.cleaning_services;
+      case RoomStatus.cleaning:
+        return Icons.autorenew;
+      case RoomStatus.inspection:
+        return Icons.search;
+      case RoomStatus.ready:
+        return Icons.check_circle;
+    }
   }
 
   /// Floor grid item for Building tab
@@ -740,8 +1054,49 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> with TickerProvid
     );
   }
 
-  /// Central floating issue count - RED number
+  /// Central floating issue count - RED number (or green with image when 0)
   Widget _buildCentralIssueCount(int count) {
+    // If no issues, show all clear image
+    if (count == 0) {
+      return SizedBox(
+        width: 160,
+        height: 160,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Image.asset(
+                'assets/all_clear.jpeg',
+                width: 100,
+                height: 100,
+                fit: BoxFit.cover,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '0 ACTIVE',
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: kGreen,
+                letterSpacing: 2,
+              ),
+            ),
+            Text(
+              'ISSUES',
+              style: GoogleFonts.inter(
+                fontSize: 10,
+                fontWeight: FontWeight.w500,
+                color: const Color(0xFF94A3B8),
+                letterSpacing: 3,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    
     return SizedBox(
       width: 160,
       height: 140,
@@ -775,6 +1130,47 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> with TickerProvid
               color: const Color(0xFF94A3B8),
               letterSpacing: 3,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// All clear card when there are no issues
+  Widget _buildAllClearCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Text(
+            'All Clear!',
+            style: GoogleFonts.inter(
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              color: kGreen,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'No active issues in $_currentDepartment',
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: const Color(0xFF94A3B8),
+            ),
+            textAlign: TextAlign.center,
           ),
         ],
       ),
@@ -1235,52 +1631,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> with TickerProvid
   Widget _buildIssuesByDateList() {
     final issuesByDate = _issuesByDate;
     if (issuesByDate.isEmpty) {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 24),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.03),
-              blurRadius: 10,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          children: [
-            Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                color: kGreen.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Icon(Icons.check_circle_outline, size: 32, color: kGreen),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'All Clear!',
-              style: GoogleFonts.inter(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: kDark,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'No active issues in $_currentDepartment',
-              style: GoogleFonts.inter(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: const Color(0xFF94A3B8),
-              ),
-            ),
-          ],
-        ),
-      );
+      return _buildAllClearCard();
     }
 
     return Column(
@@ -1706,25 +2057,33 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> with TickerProvid
       children: List.generate(40, (i) {
         final roomNum = '$floorNum${(i + 1).toString().padLeft(2, '0')}';
         final hasIssue = _issues.any((iss) => iss.area == 'Room $roomNum' && iss.floor == floor.id && iss.isOngoing);
-        return _roomCard(roomNum, hasIssue);
+        return GestureDetector(
+          onTap: () => _onRoomTap(roomNum, floor.id),
+          child: _roomCard(roomNum, hasIssue),
+        );
       }),
     );
   }
 
   /// Individual room card - compact for mobile grid
+  /// Now shows room cleaning status colors instead of just issue-based colors
   Widget _roomCard(String roomNum, bool hasIssue) {
     // Only use key if this is the target room to scroll to
     final areaName = 'Room $roomNum';
     final isTarget = _scrollToRoom == areaName;
+    
+    // Get room status from room service data
+    final room = _roomsMap[roomNum];
+    final status = room?.status ?? RoomStatus.ready;
     
     return Container(
       key: isTarget ? _targetRoomKey : null,
       width: 52,
       height: 44,
       decoration: BoxDecoration(
-        color: hasIssue ? const Color(0xFFFEF2F2) : const Color(0xFFF0FDF4),
+        color: status.backgroundColor,
         border: Border.all(
-          color: hasIssue ? const Color(0xFFFECACA) : const Color(0xFFBBF7D0),
+          color: status.borderColor,
           width: 1,
         ),
         borderRadius: BorderRadius.circular(8),
@@ -1737,49 +2096,70 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> with TickerProvid
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w700,
-              color: hasIssue ? kRed : kGreen,
+              color: status.color,
             ),
           ),
           Icon(
-            hasIssue ? Icons.warning_rounded : Icons.check_circle,
+            _getRoomStatusIcon(status),
             size: 10,
-            color: hasIssue ? kRed : kGreen.withOpacity(0.4),
+            color: status.color.withOpacity(0.7),
           ),
         ],
       ),
     );
   }
 
-  /// Breach alert card for floor issues
+  /// Breach alert card for floor issues - Blue border with priority text
   Widget _buildBreachCard(IssueModel issue) {
     final priorityColor = _getPriorityColor(issue.priority);
-    final bgColor = _getPriorityBgColor(issue.priority);
-    final borderColor = _getPriorityBorderColor(issue.priority);
+    const blueColor = Color(0xFF3B82F6);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: bgColor,
-        border: Border.all(color: borderColor, width: 1.5),
+        color: Colors.white,
+        border: Border.all(color: blueColor.withOpacity(0.3), width: 1.5),
         borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: blueColor.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Priority + time
+          // Priority badge + time
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(color: priorityColor, borderRadius: BorderRadius.circular(8)),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: priorityColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
                 child: Text(
                   issue.priority.toUpperCase(),
-                  style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w700, letterSpacing: 1, color: Colors.white),
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.5,
+                    color: priorityColor,
+                  ),
                 ),
               ),
-              Text(issue.timeAgo, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: Color(0xFF94A3B8))),
+              Text(
+                issue.timeAgo,
+                style: const TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF94A3B8),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -1788,18 +2168,23 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> with TickerProvid
             issue.description,
             style: GoogleFonts.inter(
               fontSize: 14,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w600,
               color: kDark,
               height: 1.3,
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
+          // Area
           Text(
             issue.area,
-            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: priorityColor),
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: Color(0xFF64748B),
+            ),
           ),
           const SizedBox(height: 14),
-          // Action
+          // Action button
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
@@ -1813,13 +2198,16 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> with TickerProvid
                 }
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: kDark,
+                backgroundColor: blueColor,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 elevation: 0,
               ),
-              child: const Text('TAKE ACTION', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, letterSpacing: 1)),
+              child: const Text(
+                'TAKE ACTION',
+                style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, letterSpacing: 1),
+              ),
             ),
           ),
         ],

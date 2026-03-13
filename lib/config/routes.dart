@@ -3,6 +3,7 @@ import '../screens/auth/sign_in_page.dart';
 import '../screens/dashboards/employee_dashboard.dart';
 import '../screens/dashboards/manager_dashboard.dart';
 import '../screens/dashboards/admin_dashboard.dart';
+import '../screens/housekeeping/housekeeping_dashboard.dart';
 import '../splash_screen.dart';
 import '../services/auth_service.dart';
 import '../config/departments.dart';
@@ -16,6 +17,7 @@ class AppRoutes {
   static const String employeeDashboard = '/employee-dashboard';
   static const String managerDashboard = '/manager-dashboard';
   static const String adminDashboard = '/admin-dashboard';
+  static const String housekeepingDashboard = '/housekeeping-dashboard';
 
   /// Route map for MaterialApp
   static Map<String, WidgetBuilder> getRoutes() {
@@ -25,7 +27,43 @@ class AppRoutes {
       employeeDashboard: (context) => const EmployeeDashboard(),
       managerDashboard: (context) => const ManagerDashboard(),
       adminDashboard: (context) => const AdminDashboard(),
+      housekeepingDashboard: (context) => const HousekeepingDashboard(),
     };
+  }
+
+  /// Get the appropriate dashboard route for a user based on department and role
+  static String getDashboardRoute({
+    required String department,
+    required UserRole role,
+  }) {
+    // IT department gets admin access regardless of role
+    if (department == Departments.it) {
+      return adminDashboard;
+    }
+
+    // System admins always go to admin dashboard
+    if (role == UserRole.systemAdmin) {
+      return adminDashboard;
+    }
+
+    // Housekeeping department gets their own dashboard
+    if (department == Departments.housekeeping) {
+      return housekeepingDashboard;
+    }
+
+    // Front Office managers/supervisors use manager dashboard to see all rooms
+    if (department == Departments.frontOffice && 
+        (role == UserRole.manager || role == UserRole.supervisor)) {
+      return managerDashboard;
+    }
+
+    // Regular managers go to manager dashboard
+    if (role == UserRole.manager) {
+      return managerDashboard;
+    }
+
+    // Default: employee dashboard
+    return employeeDashboard;
   }
 }
 
@@ -56,23 +94,10 @@ class _AuthGateScreenState extends State<_AuthGateScreen> {
 
     if (user != null) {
       // Session restored — go directly to the correct dashboard
-      // IT department gets admin access regardless of role
-      String route;
-      if (user.department == Departments.it) {
-        route = AppRoutes.adminDashboard;
-      } else {
-        switch (user.role) {
-          case UserRole.systemAdmin:
-            route = AppRoutes.adminDashboard;
-            break;
-          case UserRole.manager:
-            route = AppRoutes.managerDashboard;
-            break;
-          case UserRole.staff:
-            route = AppRoutes.employeeDashboard;
-            break;
-        }
-      }
+      final route = AppRoutes.getDashboardRoute(
+        department: user.department,
+        role: user.role,
+      );
       Navigator.pushReplacementNamed(context, route);
     } else {
       // No active session — show sign-in

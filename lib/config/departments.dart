@@ -32,6 +32,7 @@ class Departments {
 /// User roles in the system
 enum UserRole {
   staff,
+  supervisor,  // New role: can approve rooms, between staff and manager
   manager,
   systemAdmin;
 
@@ -40,6 +41,8 @@ enum UserRole {
     switch (this) {
       case UserRole.staff:
         return 'Staff';
+      case UserRole.supervisor:
+        return 'Supervisor';
       case UserRole.manager:
         return 'Manager';
       case UserRole.systemAdmin:
@@ -50,6 +53,8 @@ enum UserRole {
   /// Convert from string (for Firestore)
   static UserRole fromString(String value) {
     switch (value.toLowerCase()) {
+      case 'supervisor':
+        return UserRole.supervisor;
       case 'manager':
         return UserRole.manager;
       case 'systemadmin':
@@ -66,6 +71,8 @@ enum UserRole {
     switch (this) {
       case UserRole.staff:
         return 'staff';
+      case UserRole.supervisor:
+        return 'supervisor';
       case UserRole.manager:
         return 'manager';
       case UserRole.systemAdmin:

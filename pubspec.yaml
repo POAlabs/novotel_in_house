@@ -47,6 +47,9 @@ flutter:
 
   assets:
     - assets/logo.jfif
+    - assets/logo.png
+    - assets/heartist_image.jpeg
+    - assets/all_clear.jpeg
     - assets/building.svg
     - assets/home.svg
     - assets/user.svg

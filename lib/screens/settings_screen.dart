@@ -65,8 +65,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   /// System admins have full access
   bool get _isSystemAdmin => currentUser?.isSystemAdmin ?? false;
 
-  /// Can access user management (IT, System Admin, or Manager)
-  bool get _canManageUsers => _isITAdmin || _isSystemAdmin || _isManager;
+  /// Can access user management (IT, System Admin, or General Manager only)
+  /// General Manager is identified as role=manager AND department="Front Office" (GM's department)
+  bool get _isGeneralManager => _isManager && currentUser?.department == 'Front Office';
+  
+  /// Can access user management (IT or System Admin only, plus General Manager)
+  bool get _canManageUsers => _isITAdmin || _isSystemAdmin || _isGeneralManager;
 
   /// Can access debug logs and system metrics (IT or System Admin only)
   bool get _canAccessSystemTools => _isITAdmin || _isSystemAdmin;
