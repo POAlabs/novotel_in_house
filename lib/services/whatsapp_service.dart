@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'debug_log_service.dart';
+import 'usage_metrics_service.dart';
 
 /// Service for sending WhatsApp notifications via Whapi.cloud
 class WhatsAppService {
@@ -11,6 +12,7 @@ class WhatsAppService {
   static const String _baseUrl = 'https://gate.whapi.cloud';
   
   final DebugLogService _debugLog = DebugLogService();
+  final UsageMetricsService _metricsService = UsageMetricsService();
 
   // Singleton instance
   static final WhatsAppService _instance = WhatsAppService._internal();
@@ -77,6 +79,13 @@ class WhatsAppService {
             'statusCode': response.statusCode,
           },
         );
+        
+        // Track WhatsApp message for billing metrics
+        await _metricsService.recordWhatsAppMessage(
+          department: department,
+          messageType: 'issue_notification',
+        );
+        
         return true;
       } else {
         debugPrint('❌ [WHATSAPP_SERVICE] Failed to send message: ${response.statusCode} - ${response.body}');

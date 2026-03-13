@@ -546,11 +546,132 @@ class _ManagerDashboardState extends State<ManagerDashboard> {
                   const SizedBox(height: 12),
                   ...floorIssues.map((issue) => _buildFloorIssueCard(issue)),
                 ],
+                // Floor history section
+                const SizedBox(height: 24),
+                _buildFloorHistorySection(floor.id),
               ],
             ),
           ),
         ),
       ],
+    );
+  }
+
+  /// Floor-specific resolved issues history section
+  Widget _buildFloorHistorySection(String floorId) {
+    return StreamBuilder<List<IssueModel>>(
+      stream: _issueService.getResolvedIssues(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        
+        final resolvedIssues = (snapshot.data ?? [])
+            .where((issue) => issue.floor == floorId)
+            .toList();
+        
+        if (resolvedIssues.isEmpty) {
+          return const SizedBox.shrink();
+        }
+        
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'FLOOR HISTORY',
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 2,
+                color: const Color(0xFF94A3B8),
+              ),
+            ),
+            const SizedBox(height: 12),
+            ...resolvedIssues.map((issue) => _buildHistoryCard(issue)),
+          ],
+        );
+      },
+    );
+  }
+
+  /// Build a history card for resolved issues
+  Widget _buildHistoryCard(IssueModel issue) {
+    final resolvedAt = issue.resolvedAt;
+    final dateStr = resolvedAt != null
+        ? '${resolvedAt.day}/${resolvedAt.month}/${resolvedAt.year}'
+        : 'Unknown';
+    
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: kGreen.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  'RESOLVED',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                    color: kGreen,
+                    letterSpacing: 1,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              Text(
+                dateStr,
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: Color(0xFF94A3B8),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            issue.area,
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: kDark,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            issue.description,
+            style: const TextStyle(
+              fontSize: 12,
+              color: Color(0xFF64748B),
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          if (issue.resolvedByName != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Resolved by ${issue.resolvedByName}',
+              style: const TextStyle(
+                fontSize: 10,
+                color: Color(0xFF94A3B8),
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 

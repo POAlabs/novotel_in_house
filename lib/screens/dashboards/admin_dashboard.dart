@@ -18,7 +18,6 @@ import '../../services/issue_service.dart';
 import '../../config/departments.dart';
 import '../../widgets/issue_action_sheets.dart';
 import '../../widgets/analytics/analytics_section.dart';
-import '../admin/user_management_screen.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -496,9 +495,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
             showDepartmentChart: true,
           ),
           const SizedBox(height: 8),
-          // User Management Button (Admin only)
-          _buildUserManagementButton(),
-          const SizedBox(height: 16),
           // Departments header
           Text(
             'DEPARTMENTS',
@@ -513,60 +509,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
           // All department wrapped cards
           ...orderedDepartments.map((dept) => _buildDepartmentWrappedCard(dept)),
         ],
-      ),
-    );
-  }
-
-  Widget _buildUserManagementButton() {
-    return GestureDetector(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const UserManagementScreen()),
-      ),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: kPurple,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(Icons.people, color: Colors.white, size: 20),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'User Management',
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                    ),
-                  ),
-                  Text(
-                    'Add, edit, or manage users',
-                    style: GoogleFonts.inter(
-                      fontSize: 11,
-                      color: Colors.white.withOpacity(0.6),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Icon(Icons.arrow_forward_ios, color: Colors.white.withOpacity(0.5), size: 14),
-          ],
-        ),
       ),
     );
   }
@@ -960,11 +902,132 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   const SizedBox(height: 12),
                   ...floorIssues.map((issue) => _buildFloorIssueCard(issue)),
                 ],
+                // Floor history section
+                const SizedBox(height: 24),
+                _buildFloorHistorySection(floor.id),
               ],
             ),
           ),
         ),
       ],
+    );
+  }
+
+  /// Floor-specific resolved issues history section
+  Widget _buildFloorHistorySection(String floorId) {
+    return StreamBuilder<List<IssueModel>>(
+      stream: _issueService.getResolvedIssues(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        
+        final resolvedIssues = (snapshot.data ?? [])
+            .where((issue) => issue.floor == floorId)
+            .toList();
+        
+        if (resolvedIssues.isEmpty) {
+          return const SizedBox.shrink();
+        }
+        
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'FLOOR HISTORY',
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 2,
+                color: const Color(0xFF94A3B8),
+              ),
+            ),
+            const SizedBox(height: 12),
+            ...resolvedIssues.map((issue) => _buildHistoryCard(issue)),
+          ],
+        );
+      },
+    );
+  }
+
+  /// Build a history card for resolved issues
+  Widget _buildHistoryCard(IssueModel issue) {
+    final resolvedAt = issue.resolvedAt;
+    final dateStr = resolvedAt != null
+        ? '${resolvedAt.day}/${resolvedAt.month}/${resolvedAt.year}'
+        : 'Unknown';
+    
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: kGreen.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  'RESOLVED',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                    color: kGreen,
+                    letterSpacing: 1,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              Text(
+                dateStr,
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: Color(0xFF94A3B8),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            issue.area,
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: kDark,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            issue.description,
+            style: const TextStyle(
+              fontSize: 12,
+              color: Color(0xFF64748B),
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          if (issue.resolvedByName != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Resolved by ${issue.resolvedByName}',
+              style: const TextStyle(
+                fontSize: 10,
+                color: Color(0xFF94A3B8),
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 

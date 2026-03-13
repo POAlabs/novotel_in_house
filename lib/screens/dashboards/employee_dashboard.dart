@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -19,10 +20,11 @@ class EmployeeDashboard extends StatefulWidget {
   State<EmployeeDashboard> createState() => _EmployeeDashboardState();
 }
 
-class _EmployeeDashboardState extends State<EmployeeDashboard> {
+class _EmployeeDashboardState extends State<EmployeeDashboard> with TickerProviderStateMixin {
   // Design system colors
   static const Color kBg = Color(0xFFF8FAFC);
   static const Color kDark = Color(0xFF0F172A);
+  static const Color kNavy = Color(0xFF1E3A5F);
   static const Color kGreen = Color(0xFF10B981);
   static const Color kRed = Color(0xFFEF4444);
   
@@ -89,9 +91,56 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
   // GlobalKey for the target room/area to scroll to (created fresh each time)
   GlobalKey? _targetRoomKey;
 
+  // Animation controllers for orbital home view
+  late AnimationController _orbitController;
+  late AnimationController _entryController;
+  late Animation<double> _centerScaleAnimation;
+  late Animation<double> _orbitExpansionAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _initAnimations();
+  }
+
+  void _initAnimations() {
+    // Continuous orbit rotation (120 seconds for full rotation - slow and smooth)
+    _orbitController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 120),
+    )..repeat();
+
+    // Entry animation (1.2 seconds)
+    _entryController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    );
+
+    // Center number scale animation
+    _centerScaleAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _entryController,
+        curve: const Interval(0.0, 0.6, curve: Curves.elasticOut),
+      ),
+    );
+
+    // Orbit expansion animation (circles fly out from center)
+    _orbitExpansionAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _entryController,
+        curve: const Interval(0.2, 1.0, curve: Curves.easeOutCubic),
+      ),
+    );
+
+    // Start entry animation
+    _entryController.forward();
+  }
+
   @override
   void dispose() {
     _floorViewScrollController.dispose();
+    _orbitController.dispose();
+    _entryController.dispose();
     super.dispose();
   }
 
@@ -272,10 +321,17 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
     final isActive = _currentNavIndex == index;
     const activeColor = Color(0xFF3B82F6);
     return GestureDetector(
-      onTap: () => setState(() {
-        _currentNavIndex = index;
-        if (index != 0) _selectedFloorId = null;
-      }),
+      onTap: () {
+        final wasOnHome = _currentNavIndex == 1;
+        setState(() {
+          _currentNavIndex = index;
+          if (index != 0) _selectedFloorId = null;
+        });
+        // Restart entry animation when navigating to home
+        if (index == 1 && !wasOnHome) {
+          _restartEntryAnimation();
+        }
+      },
       behavior: HitTestBehavior.opaque,
       child: SizedBox(
         width: 72,
@@ -550,31 +606,37 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
     return grouped;
   }
 
-  // ─── HOME VIEW ──────────────────────────────────────────────────
+  // ─── HOME VIEW - ORBITAL COMMAND CENTER ──────────────────────────────────────────────────
 
   Widget _buildHomeView() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Department wrapped card
-          _buildDepartmentWrappedCard(),
+          // Header
+          _buildCommandCenterHeader(),
           const SizedBox(height: 24),
-          // Report Issue Button
+          // Orbital visualization in a fixed height container
+          SizedBox(
+            height: 380,
+            child: _buildOrbitalVisualization(),
+          ),
+          const SizedBox(height: 24),
+          // Report Issue Button (white with blue border)
           _buildReportIssueButton(),
-          const SizedBox(height: 32),
+          const SizedBox(height: 28),
           // Active issues by date
           Text(
             'ACTIVE ISSUES',
-            style: GoogleFonts.sora(
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 3,
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 2,
               color: const Color(0xFF94A3B8),
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
           // Issues grouped by date
           _buildIssuesByDateList(),
         ],
@@ -582,16 +644,212 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
     );
   }
 
-  /// Report Issue button
+  /// Command center header with hotel name
+  Widget _buildCommandCenterHeader() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'NOVOTEL HOTEL',
+          style: GoogleFonts.inter(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: kNavy,
+            letterSpacing: 1,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          'In-House App',
+          style: GoogleFonts.inter(
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+            color: const Color(0xFF94A3B8),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Restart the entry animation when returning to home
+  void _restartEntryAnimation() {
+    _entryController.reset();
+    _entryController.forward();
+  }
+
+  /// Main orbital visualization with central count and orbiting floors
+  Widget _buildOrbitalVisualization() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final centerX = constraints.maxWidth / 2;
+        final centerY = constraints.maxHeight / 2; // Center vertically
+        final orbitRadius = math.min(constraints.maxWidth, constraints.maxHeight) * 0.38;
+
+        // Get floors with active issues
+        final floorsWithIssues = _floors.where((f) => _hasIssue(f.id)).toList();
+        final totalActiveIssues = _departmentIssues.length;
+
+        return AnimatedBuilder(
+          animation: Listenable.merge([_orbitController, _entryController]),
+          builder: (context, child) {
+            return Stack(
+              children: [
+                // Orbiting floor circles
+                ...List.generate(floorsWithIssues.length, (index) {
+                  final floor = floorsWithIssues[index];
+                  final issueCount = _getFloorIssueCount(floor.id);
+                  
+                  // Calculate position on orbit
+                  final baseAngle = (2 * math.pi * index) / floorsWithIssues.length;
+                  final rotationAngle = _orbitController.value * 2 * math.pi;
+                  final currentAngle = baseAngle + rotationAngle;
+                  
+                  // Apply expansion animation
+                  final currentRadius = orbitRadius * _orbitExpansionAnimation.value;
+                  
+                  final x = centerX + currentRadius * math.cos(currentAngle) - 28;
+                  final y = centerY + currentRadius * math.sin(currentAngle) - 28;
+
+                  return Positioned(
+                    left: x,
+                    top: y,
+                    child: Opacity(
+                      opacity: _orbitExpansionAnimation.value,
+                      child: _buildOrbitingFloorCircle(
+                        floor.id,
+                        issueCount,
+                        currentAngle,
+                      ),
+                    ),
+                  );
+                }),
+                // Central active issues count
+                Positioned(
+                  left: centerX - 80,
+                  top: centerY - 70,
+                  child: Transform.scale(
+                    scale: _centerScaleAnimation.value,
+                    child: _buildCentralIssueCount(totalActiveIssues),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  /// Central floating issue count - RED number
+  Widget _buildCentralIssueCount(int count) {
+    return SizedBox(
+      width: 160,
+      height: 140,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            '$count',
+            style: GoogleFonts.inter(
+              fontSize: 96,
+              fontWeight: FontWeight.w800,
+              color: kRed,
+              height: 1,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'A C T I V E',
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: const Color(0xFF3B82F6),
+              letterSpacing: 6,
+            ),
+          ),
+          Text(
+            'ISSUES',
+            style: GoogleFonts.inter(
+              fontSize: 10,
+              fontWeight: FontWeight.w500,
+              color: const Color(0xFF94A3B8),
+              letterSpacing: 3,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Orbiting floor circle with blue glow effect
+  Widget _buildOrbitingFloorCircle(String floorId, int issueCount, double angle) {
+    const glowColor = Color(0xFF3B82F6); // Blue glow
+    
+    return GestureDetector(
+      onTap: () => setState(() {
+        _currentNavIndex = 0;
+        _selectedFloorId = floorId;
+      }),
+      child: Container(
+        width: 56,
+        height: 56,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          shape: BoxShape.circle,
+          boxShadow: [
+            // Blue glow effect
+            BoxShadow(
+              color: glowColor.withOpacity(0.4),
+              blurRadius: 16,
+              spreadRadius: 2,
+            ),
+            BoxShadow(
+              color: glowColor.withOpacity(0.2),
+              blurRadius: 24,
+              spreadRadius: 4,
+            ),
+            // Subtle shadow for depth
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Center(
+          child: Text(
+            floorId,
+            style: GoogleFonts.inter(
+              fontSize: floorId.length > 2 ? 14 : 18,
+              fontWeight: FontWeight.w700,
+              color: kNavy,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Report Issue button - white with blue border
   Widget _buildReportIssueButton() {
+    const blueColor = Color(0xFF3B82F6);
+    
     return GestureDetector(
       onTap: _openReportIssueFlow,
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: kDark,
+          color: Colors.white,
           borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: blueColor, width: 2),
+          boxShadow: [
+            BoxShadow(
+              color: blueColor.withOpacity(0.1),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Row(
           children: [
@@ -599,10 +857,10 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
               width: 48,
               height: 48,
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.15),
+                color: blueColor.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: const Icon(Icons.add, color: Colors.white, size: 24),
+              child: const Icon(Icons.add, color: blueColor, size: 24),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -614,7 +872,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
                     style: GoogleFonts.inter(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
-                      color: Colors.white,
+                      color: kDark,
                     ),
                   ),
                   const SizedBox(height: 2),
@@ -622,15 +880,308 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
                     'Tap to report a new issue',
                     style: GoogleFonts.inter(
                       fontSize: 12,
-                      color: Colors.white.withOpacity(0.6),
+                      color: const Color(0xFF64748B),
                     ),
                   ),
                 ],
               ),
             ),
-            Icon(Icons.arrow_forward_ios, color: Colors.white.withOpacity(0.5), size: 16),
+            const Icon(Icons.arrow_forward_ios, color: blueColor, size: 16),
           ],
         ),
+      ),
+    );
+  }
+
+  /// Greeting header with user's name and current date/time
+  Widget _buildGreetingHeader() {
+    final now = DateTime.now();
+    final hour = now.hour;
+    String greeting;
+    if (hour < 12) {
+      greeting = 'Good Morning';
+    } else if (hour < 17) {
+      greeting = 'Good Afternoon';
+    } else {
+      greeting = 'Good Evening';
+    }
+
+    final firstName = _currentUser?.displayName.split(' ').first ?? 'Team';
+    
+    // Format date
+    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final dayName = days[now.weekday - 1];
+    final dateStr = '$dayName, ${now.day} ${months[now.month - 1]}';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '$greeting,',
+          style: GoogleFonts.inter(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: const Color(0xFF64748B),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          firstName,
+          style: GoogleFonts.inter(
+            fontSize: 28,
+            fontWeight: FontWeight.w700,
+            color: kDark,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          dateStr,
+          style: GoogleFonts.inter(
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+            color: const Color(0xFF94A3B8),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Building health indicator - visual overview of building status
+  Widget _buildBuildingHealthCard() {
+    final totalFloors = _floors.length;
+    final floorsWithIssues = _floors.where((f) => _hasIssue(f.id)).length;
+    final healthyFloors = totalFloors - floorsWithIssues;
+    final healthPercentage = (healthyFloors / totalFloors * 100).round();
+    
+    final isHealthy = healthPercentage >= 80;
+    final statusColor = isHealthy ? kGreen : (healthPercentage >= 50 ? const Color(0xFFF59E0B) : kRed);
+    final statusText = isHealthy ? 'Excellent' : (healthPercentage >= 50 ? 'Moderate' : 'Needs Attention');
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Building Health',
+                style: GoogleFonts.inter(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: kDark,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: statusColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: statusColor,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      statusText,
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: statusColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          // Progress bar
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: healthPercentage / 100,
+              backgroundColor: const Color(0xFFE2E8F0),
+              valueColor: AlwaysStoppedAnimation<Color>(statusColor),
+              minHeight: 8,
+            ),
+          ),
+          const SizedBox(height: 12),
+          // Stats row
+          Row(
+            children: [
+              _buildHealthStat('$healthyFloors', 'Floors OK', kGreen),
+              const SizedBox(width: 24),
+              _buildHealthStat('$floorsWithIssues', 'With Issues', kRed),
+              const Spacer(),
+              Text(
+                '$healthPercentage%',
+                style: GoogleFonts.inter(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800,
+                  color: statusColor,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHealthStat(String value, String label, Color color) {
+    return Row(
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 6),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              value,
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: kDark,
+              ),
+            ),
+            Text(
+              label,
+              style: GoogleFonts.inter(
+                fontSize: 10,
+                fontWeight: FontWeight.w500,
+                color: const Color(0xFF94A3B8),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// Quick stats row - resolved today and department active issues
+  Widget _buildQuickStatsRow() {
+    final activeIssues = _departmentIssues.length;
+    final resolvedToday = _getResolvedTodayCount();
+
+    return Row(
+      children: [
+        Expanded(
+          child: _buildQuickStatCard(
+            icon: Icons.warning_amber_rounded,
+            value: '$activeIssues',
+            label: 'Active Issues',
+            color: activeIssues > 0 ? kRed : kGreen,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _buildQuickStatCard(
+            icon: Icons.check_circle_outline,
+            value: '$resolvedToday',
+            label: 'Resolved Today',
+            color: kGreen,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Get count of issues resolved today for the department
+  int _getResolvedTodayCount() {
+    final today = DateTime.now();
+    final startOfDay = DateTime(today.year, today.month, today.day);
+    
+    // This would need resolved issues stream, for now estimate from all issues
+    // In production, you'd query resolved issues from today
+    return 0; // Placeholder - will show actual data when resolved issues are tracked
+  }
+
+  Widget _buildQuickStatCard({
+    required IconData icon,
+    required String value,
+    required String label,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  value,
+                  style: GoogleFonts.inter(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: kDark,
+                  ),
+                ),
+                Text(
+                  label,
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: const Color(0xFF64748B),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -684,19 +1235,50 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
   Widget _buildIssuesByDateList() {
     final issuesByDate = _issuesByDate;
     if (issuesByDate.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            children: [
-              Icon(Icons.check_circle_outline, size: 48, color: kGreen.withOpacity(0.5)),
-              const SizedBox(height: 12),
-              const Text(
-                'No active issues',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.03),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: kGreen.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(16),
               ),
-            ],
-          ),
+              child: Icon(Icons.check_circle_outline, size: 32, color: kGreen),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'All Clear!',
+              style: GoogleFonts.inter(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: kDark,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'No active issues in $_currentDepartment',
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: const Color(0xFF94A3B8),
+              ),
+            ),
+          ],
         ),
       );
     }
@@ -727,11 +1309,10 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
     );
   }
 
-  /// Issue card for date-grouped view
+  /// Issue card for date-grouped view - Blue border with priority text
   Widget _buildDateIssueCard(IssueModel issue) {
     final priorityColor = _getPriorityColor(issue.priority);
-    final bgColor = _getPriorityBgColor(issue.priority);
-    final borderColor = _getPriorityBorderColor(issue.priority);
+    const blueColor = Color(0xFF3B82F6);
 
     return GestureDetector(
       onTap: () => _navigateToFloorAndScrollTo(issue.floor, issue.area),
@@ -739,465 +1320,71 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: bgColor,
-          border: Border.all(color: borderColor, width: 1),
+          color: Colors.white,
+          border: Border.all(color: blueColor.withOpacity(0.3), width: 1.5),
           borderRadius: BorderRadius.circular(16),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Priority indicator
-            Container(
-              width: 10,
-              height: 10,
-              margin: const EdgeInsets.only(top: 4),
-              decoration: BoxDecoration(
-                color: priorityColor,
-                shape: BoxShape.circle,
-              ),
-            ),
-            const SizedBox(width: 12),
-            // Content
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    issue.description,
-                    style: GoogleFonts.inter(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: kDark,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      Text(
-                        'Floor ${issue.floor} • ${issue.area}',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                          color: priorityColor,
-                        ),
-                      ),
-                      const Spacer(),
-                      Text(
-                        issue.timeAgo,
-                        style: const TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w500,
-                          color: Color(0xFF94A3B8),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+          boxShadow: [
+            BoxShadow(
+              color: blueColor.withOpacity(0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  /// Get issues count in the last N days for current department
-  int _getIssueCountInLastDays(int days) {
-    final cutoff = DateTime.now().subtract(Duration(days: days));
-    return _issues.where((i) => 
-      i.department == _currentDepartment && 
-      i.createdAt.isAfter(cutoff)
-    ).length;
-  }
-
-  Widget _buildDepartmentWrappedCard() {
-    final deptIssues = _departmentIssues;
-    final issuesLast30Days = _getIssueCountInLastDays(30);
-    final issuesLast1Year = _getIssueCountInLastDays(365);
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Main today's issues card
-        Expanded(
-          flex: 3,
-          child: Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF8FAFC),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Department Name
-                Text(
-                  '$_currentDepartment\nDepartment',
-                  style: GoogleFonts.inter(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: kDark,
-                    height: 1.2,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                // Large issue count
-                Center(
-                  child: Text(
-                    '${deptIssues.length}',
-                    style: GoogleFonts.inter(
-                      fontSize: 64,
-                      fontWeight: FontWeight.w800,
-                      color: kRed,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                // Active issues label
-                Center(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: kRed.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      'Active Issues Today',
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: kRed,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        // Right side: 30 days and 1 year stats
-        SizedBox(
-          width: 90,
-          child: Column(
-            children: [
-              // Last 30 days
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
-                ),
-                child: Column(
-                  children: [
-                    Text(
-                      '$issuesLast30Days',
-                      style: GoogleFonts.inter(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w800,
-                        color: kDark,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '30 Days',
-                      style: GoogleFonts.inter(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF64748B),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 8),
-              // Last 1 year
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
-                ),
-                child: Column(
-                  children: [
-                    Text(
-                      '$issuesLast1Year',
-                      style: GoogleFonts.inter(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w800,
-                        color: kDark,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '1 Year',
-                      style: GoogleFonts.inter(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF64748B),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// Active issues summary banner
-  Widget _buildActiveIssuesSummary(int totalIssues, int floorsAffected, int urgentCount) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFEF2F2),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFFECACA)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: const Color(0xFFFEE2E2),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(Icons.warning_rounded, color: kRed, size: 24),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '$totalIssues Active Issues',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    color: kDark,
-                  ),
-                ),
-                Text(
-                  '$floorsAffected floors affected  •  $urgentCount urgent',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: Color(0xFF64748B),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Small report button for header row
-  Widget _buildSmallReportButton() {
-    return ElevatedButton.icon(
-      onPressed: () {},
-      icon: const Icon(Icons.add, size: 16),
-      label: const Text('REPORT', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 1)),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: kRed,
-        foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        elevation: 0,
-      ),
-    );
-  }
-
-  /// Issues grouped by floor list
-  Widget _buildIssuesByFloorList() {
-    final issuesByFloor = _issuesByFloor;
-    if (issuesByFloor.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            children: [
-              Icon(Icons.check_circle_outline, size: 48, color: kGreen.withOpacity(0.5)),
-              const SizedBox(height: 12),
-              const Text(
-                'No active issues',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    // Sort floors: B3, B2, B1, G, 1, 2, ..., 11
-    final sortedFloors = issuesByFloor.keys.toList()..sort((a, b) {
-      int floorValue(String f) {
-        if (f == 'G') return 0;
-        if (f.startsWith('B')) return -int.parse(f.substring(1));
-        return int.tryParse(f) ?? 0;
-      }
-      return floorValue(a).compareTo(floorValue(b));
-    });
-
-    return Column(
-      children: sortedFloors.map((floorId) {
-        final floorIssues = issuesByFloor[floorId]!;
-        return _buildFloorIssueCard(floorId, floorIssues);
-      }).toList(),
-    );
-  }
-
-  /// Floor issue card showing floor with its issues
-  Widget _buildFloorIssueCard(String floorId, List<IssueModel> issues) {
-    final floor = _floors.firstWhere((f) => f.id == floorId, orElse: () => FloorModel(id: floorId, name: 'Floor $floorId', areas: []));
-    final floorName = _getFloorDisplayName(floorId);
-
-    return GestureDetector(
-      onTap: () => setState(() {
-        _currentNavIndex = 0; // Switch to Building tab
-        _selectedFloorId = floorId;
-      }),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Floor header
+            // Top row: Priority badge and time
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: kDark,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Center(
-                    child: Text(
-                      floorId,
-                      style: TextStyle(
-                        fontSize: floorId.length > 2 ? 11 : 14,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    floorName,
-                    style: GoogleFonts.inter(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: kDark,
-                    ),
-                  ),
-                ),
+                // Priority badge
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: kRed.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
+                    color: priorityColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
-                    '${issues.length}',
-                    style: const TextStyle(
-                      fontSize: 11,
+                    issue.priority.toUpperCase(),
+                    style: TextStyle(
+                      fontSize: 9,
                       fontWeight: FontWeight.w700,
-                      color: kRed,
+                      color: priorityColor,
+                      letterSpacing: 0.5,
                     ),
+                  ),
+                ),
+                Text(
+                  issue.timeAgo,
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF94A3B8),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            // Issue previews - each tappable to scroll to that issue
-            ...issues.take(2).map((issue) {
-              final priorityColor = _getPriorityColor(issue.priority);
-              return GestureDetector(
-                onTap: () => _navigateToFloorAndScrollTo(floorId, issue.area),
-                child: Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: _getPriorityBgColor(issue.priority),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: _getPriorityBorderColor(issue.priority)),
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color: priorityColor,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          issue.description,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: kDark,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        issue.area,
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w500,
-                          color: priorityColor,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }),
-            // Tap to view floor hint
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    'View floor',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      color: const Color(0xFF94A3B8),
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  Icon(Icons.arrow_forward_ios, size: 10, color: const Color(0xFF94A3B8)),
-                ],
+            const SizedBox(height: 10),
+            // Description
+            Text(
+              issue.description,
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: kDark,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 6),
+            // Location
+            Text(
+              'Floor ${issue.floor} • ${issue.area}',
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF64748B),
               ),
             ),
           ],
@@ -1206,24 +1393,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
     );
   }
 
-  /// Get display name for floor
-  String _getFloorDisplayName(String floorId) {
-    switch (floorId) {
-      case 'G': return 'Ground Floor';
-      case 'B1': return 'Basement 1';
-      case 'B2': return 'Basement 2';
-      case 'B3': return 'Basement 3';
-      case '1': return '1st Floor';
-      case '2': return '2nd Floor';
-      case '3': return '3rd Floor';
-      default:
-        final num = int.tryParse(floorId);
-        if (num != null) return '${num}th Floor';
-        return 'Floor $floorId';
-    }
-  }
-
-  // ─── FLOOR VIEW ────────────────────────────────────────────────────
+  // ─── FLOOR VIEW ──────────────────────────────────────────────────
 
   Widget _buildFloorView() {
     final floor = _selectedFloor!;
