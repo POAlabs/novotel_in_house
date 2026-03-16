@@ -3,29 +3,37 @@ import 'package:google_fonts/google_fonts.dart';
 import '../models/room_model.dart';
 
 /// Compact room status card for building view grid
+/// If room has an issue, display as red regardless of cleaning status
 class RoomStatusCard extends StatelessWidget {
   final RoomModel room;
   final VoidCallback? onTap;
   final bool showCleanerName;
+  final bool hasIssue;
 
   const RoomStatusCard({
     super.key,
     required this.room,
     this.onTap,
     this.showCleanerName = false,
+    this.hasIssue = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    // If room has an issue, override color to red
+    final displayColor = hasIssue ? const Color(0xFFEF4444) : room.status.color;
+    final displayBgColor = hasIssue ? const Color(0xFFFEF2F2) : room.status.backgroundColor;
+    final displayBorderColor = hasIssue ? const Color(0xFFFECACA) : room.status.borderColor;
+    
     return GestureDetector(
       onTap: onTap,
       child: Container(
         width: 56,
         height: 48,
         decoration: BoxDecoration(
-          color: room.status.backgroundColor,
+          color: displayBgColor,
           border: Border.all(
-            color: room.status.borderColor,
+            color: displayBorderColor,
             width: 1.5,
           ),
           borderRadius: BorderRadius.circular(10),
@@ -38,41 +46,47 @@ class RoomStatusCard extends StatelessWidget {
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
-                color: room.status.color,
+                color: displayColor,
               ),
             ),
             const SizedBox(height: 2),
-            _buildStatusIcon(),
+            _buildStatusIcon(displayColor),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildStatusIcon() {
+  Widget _buildStatusIcon(Color displayColor) {
     IconData icon;
-    switch (room.status) {
-      case RoomStatus.occupied:
-        icon = Icons.person;
-        break;
-      case RoomStatus.checkout:
-        icon = Icons.cleaning_services;
-        break;
-      case RoomStatus.cleaning:
-        icon = Icons.autorenew;
-        break;
-      case RoomStatus.inspection:
-        icon = Icons.search;
-        break;
-      case RoomStatus.ready:
-        icon = Icons.check_circle;
-        break;
+    
+    // If room has an issue, show warning icon
+    if (hasIssue) {
+      icon = Icons.warning;
+    } else {
+      switch (room.status) {
+        case RoomStatus.occupied:
+          icon = Icons.person;
+          break;
+        case RoomStatus.checkout:
+          icon = Icons.cleaning_services;
+          break;
+        case RoomStatus.cleaning:
+          icon = Icons.autorenew;
+          break;
+        case RoomStatus.inspection:
+          icon = Icons.search;
+          break;
+        case RoomStatus.ready:
+          icon = Icons.check_circle;
+          break;
+      }
     }
 
     return Icon(
       icon,
       size: 12,
-      color: room.status.color.withOpacity(0.7),
+      color: displayColor.withOpacity(0.7),
     );
   }
 }

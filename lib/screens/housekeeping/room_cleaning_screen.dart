@@ -76,7 +76,9 @@ class _RoomCleaningScreenState extends State<RoomCleaningScreen> {
             );
           }
 
-          final isMyRoom = room.cleaningStartedBy == _currentUser?.uid;
+          // Any housekeeping staff (or admin) can edit any room's checklist
+          final canEdit = _currentUser?.isHousekeeping == true ||
+              _currentUser?.isSystemAdmin == true;
           final checklist = room.checklist ?? CleaningChecklist.createEmpty();
           final isComplete = CleaningChecklist.isComplete(checklist);
 
@@ -105,8 +107,8 @@ class _RoomCleaningScreenState extends State<RoomCleaningScreen> {
                       // Checklist items
                       CleaningChecklistWidget(
                         checklist: checklist,
-                        readOnly: !isMyRoom,
-                        onItemChanged: isMyRoom 
+                        readOnly: !canEdit,
+                        onItemChanged: canEdit
                             ? (key, value) => _updateChecklistItem(key, value)
                             : null,
                       ),
@@ -116,7 +118,7 @@ class _RoomCleaningScreenState extends State<RoomCleaningScreen> {
               ),
 
               // Bottom action button
-              if (isMyRoom)
+              if (canEdit)
                 _buildBottomAction(isComplete),
             ],
           );

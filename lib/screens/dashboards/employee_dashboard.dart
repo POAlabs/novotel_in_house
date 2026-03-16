@@ -15,6 +15,7 @@ import '../../config/departments.dart';
 import '../../widgets/issue_action_sheets.dart';
 import '../housekeeping/room_cleaning_screen.dart';
 import '../housekeeping/room_inspection_screen.dart';
+import '../front_office/room_management_screen.dart';
 
 /// Employee dashboard
 /// Floor diagnostic system with bottom navigation
@@ -782,6 +783,20 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> with TickerProvid
     final user = _currentUser;
     if (user == null) return;
     
+    // Front Office staff: Navigate to premium room management screen
+    if (user.isFrontOffice) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => RoomManagementScreen(
+            room: room,
+            currentUser: user,
+          ),
+        ),
+      );
+      return;
+    }
+    
     // Navigate based on room status and user permissions
     switch (room.status) {
       case RoomStatus.checkout:
@@ -920,9 +935,17 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> with TickerProvid
     return grouped;
   }
 
-  // ─── HOME VIEW - ORBITAL COMMAND CENTER ──────────────────────────────────────────────────
+  // ─── HOME VIEW - ORBITAL COMMAND CENTER ──────────────────────────────────────────
 
   Widget _buildHomeView() {
+    final user = _currentUser;
+    
+    // Front Office staff get dedicated room metrics view
+    if (user != null && user.isFrontOffice) {
+      return _buildFrontOfficeHomeView();
+    }
+    
+    // Other departments get the orbital issues view
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -953,6 +976,170 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> with TickerProvid
           const SizedBox(height: 14),
           // Issues grouped by date
           _buildIssuesByDateList(),
+        ],
+      ),
+    );
+  }
+  
+  /// Front Office Home View - Room status metrics
+  Widget _buildFrontOfficeHomeView() {
+    return StreamBuilder<List<RoomModel>>(
+      stream: _roomService.getAllRooms(),
+      builder: (context, snapshot) {
+        final rooms = snapshot.data ?? [];
+        
+        // Calculate metrics
+        final occupiedRooms = rooms.where((r) => r.status == RoomStatus.occupied).length;
+        final readyRooms = rooms.where((r) => r.status == RoomStatus.ready).length;
+        final cleaningRooms = rooms.where((r) => 
+          r.status == RoomStatus.checkout || 
+          r.status == RoomStatus.cleaning || 
+          r.status == RoomStatus.inspection
+        ).length;
+        
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Text(
+                'Front Office',
+                style: GoogleFonts.inter(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w800,
+                  color: kDark,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Room Management Dashboard',
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: const Color(0xFF64748B),
+                ),
+              ),
+              const SizedBox(height: 24),
+              
+              // Front Office Metrics
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildFrontOfficeMetricCard(
+                      count: occupiedRooms,
+                      label: 'Occupied',
+                      color: const Color(0xFF3B82F6),
+                      icon: Icons.person,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildFrontOfficeMetricCard(
+                      count: readyRooms,
+                      label: 'Ready',
+                      color: kGreen,
+                      icon: Icons.check_circle,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildFrontOfficeMetricCard(
+                      count: cleaningRooms,
+                      label: 'Cleaning',
+                      color: const Color(0xFFF59E0B),
+                      icon: Icons.cleaning_services,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              
+              // Quick info card
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.04),
+                      blurRadius: 20,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Quick Actions',
+                      style: GoogleFonts.inter(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: kDark,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Tap any room on the Building screen to manage guest check-in and check-out.',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: const Color(0xFF64748B),
+                        height: 1.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+  
+  Widget _buildFrontOfficeMetricCard({
+    required int count,
+    required String label,
+    required Color color,
+    required IconData icon,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withOpacity(0.3)),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 24),
+          const SizedBox(height: 8),
+          Text(
+            '$count',
+            style: GoogleFonts.inter(
+              fontSize: 24,
+              fontWeight: FontWeight.w800,
+              color: kDark,
+            ),
+          ),
+          Text(
+            label,
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: const Color(0xFF64748B),
+            ),
+          ),
         ],
       ),
     );
@@ -2067,6 +2254,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> with TickerProvid
 
   /// Individual room card - compact for mobile grid
   /// Now shows room cleaning status colors instead of just issue-based colors
+  /// If room has an issue, display as red regardless of cleaning status
   Widget _roomCard(String roomNum, bool hasIssue) {
     // Only use key if this is the target room to scroll to
     final areaName = 'Room $roomNum';
@@ -2076,14 +2264,20 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> with TickerProvid
     final room = _roomsMap[roomNum];
     final status = room?.status ?? RoomStatus.ready;
     
+    // If room has an issue, override color to red
+    final displayColor = hasIssue ? const Color(0xFFEF4444) : status.color;
+    final displayBgColor = hasIssue ? const Color(0xFFFEF2F2) : status.backgroundColor;
+    final displayBorderColor = hasIssue ? const Color(0xFFFECACA) : status.borderColor;
+    final displayIcon = hasIssue ? Icons.warning : _getRoomStatusIcon(status);
+    
     return Container(
       key: isTarget ? _targetRoomKey : null,
       width: 52,
       height: 44,
       decoration: BoxDecoration(
-        color: status.backgroundColor,
+        color: displayBgColor,
         border: Border.all(
-          color: status.borderColor,
+          color: displayBorderColor,
           width: 1,
         ),
         borderRadius: BorderRadius.circular(8),
@@ -2096,13 +2290,13 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> with TickerProvid
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w700,
-              color: status.color,
+              color: displayColor,
             ),
           ),
           Icon(
-            _getRoomStatusIcon(status),
+            displayIcon,
             size: 10,
-            color: status.color.withOpacity(0.7),
+            color: displayColor.withOpacity(0.7),
           ),
         ],
       ),
@@ -2213,5 +2407,227 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> with TickerProvid
         ],
       ),
     );
+  }
+  
+  /// Show front office action sheet for room management
+  void _showFrontOfficeActions(RoomModel room) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: room.status.backgroundColor,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: room.status.borderColor),
+                  ),
+                  child: Text(
+                    room.roomNumber,
+                    style: GoogleFonts.inter(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: room.status.color,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: room.status.color,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    room.status.displayName.toUpperCase(),
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            // Actions based on room status
+            if (room.status == RoomStatus.ready) ...[
+              _buildFrontOfficeButton(
+                icon: Icons.person_add,
+                label: 'Check In Guest',
+                color: const Color(0xFF3B82F6),
+                onTap: () {
+                  Navigator.pop(context);
+                  _checkInGuest(room);
+                },
+              ),
+            ],
+            if (room.status == RoomStatus.occupied) ...[
+              _buildFrontOfficeButton(
+                icon: Icons.logout,
+                label: 'Check Out Guest',
+                color: const Color(0xFFEF4444),
+                onTap: () {
+                  Navigator.pop(context);
+                  _checkOutGuest(room);
+                },
+              ),
+            ],
+            if (room.status == RoomStatus.checkout ||
+                room.status == RoomStatus.cleaning ||
+                room.status == RoomStatus.inspection) ...[
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFFBEB),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFFDE68A)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.info_outline, color: Color(0xFFF59E0B)),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Room is being cleaned by housekeeping',
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: const Color(0xFF92400E),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 12),
+            // Cancel button
+            SizedBox(
+              width: double.infinity,
+              child: TextButton(
+                onPressed: () => Navigator.pop(context),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                child: Text(
+                  'Cancel',
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF64748B),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildFrontOfficeButton({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: onTap,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: color,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          elevation: 0,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 20),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  /// Check in a guest (mark room as occupied)
+  Future<void> _checkInGuest(RoomModel room) async {
+    if (_currentUser == null) return;
+    
+    try {
+      await _roomService.markOccupied(
+        roomId: room.id,
+        user: _currentUser!,
+      );
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Room ${room.roomNumber} checked in'),
+            backgroundColor: const Color(0xFF10B981),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: const Color(0xFFEF4444),
+          ),
+        );
+      }
+    }
+  }
+  
+  /// Check out a guest (mark room as needing cleaning)
+  Future<void> _checkOutGuest(RoomModel room) async {
+    if (_currentUser == null) return;
+    
+    try {
+      await _roomService.markCheckout(
+        roomId: room.id,
+        user: _currentUser!,
+      );
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Room ${room.roomNumber} checked out - Ready for cleaning'),
+            backgroundColor: const Color(0xFFEF4444),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: const Color(0xFFEF4444),
+          ),
+        );
+      }
+    }
   }
 }

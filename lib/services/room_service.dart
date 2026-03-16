@@ -418,7 +418,7 @@ class RoomService {
           batch.set(docRef, {
             'roomNumber': roomNumber,
             'floor': floor.toString(),
-            'status': RoomStatus.ready.toFirestore(),
+            'status': RoomStatus.checkout.toFirestore(),
             'lastUpdated': now,
           }, SetOptions(merge: true));
         }

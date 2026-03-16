@@ -4,6 +4,7 @@ import 'firebase_options.dart';
 import 'config/routes.dart';
 import 'services/auth_service.dart';
 import 'services/notification_service.dart';
+import 'services/room_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,6 +22,15 @@ void main() async {
     // Initialize push notifications after Firebase is ready
     await NotificationService().initialize();
     debugPrint('Notification service initialized');
+
+    // Seed rooms into Firestore if they don't exist yet (runs once)
+    final roomService = RoomService();
+    final roomsExist = await roomService.roomsExist();
+    if (!roomsExist) {
+      debugPrint('No rooms found — initializing 360 rooms...');
+      await roomService.initializeRooms();
+      debugPrint('Rooms initialized successfully');
+    }
   } catch (e) {
     debugPrint('Firebase initialization failed: $e');
     debugPrint('Running in demo mode with dummy accounts');

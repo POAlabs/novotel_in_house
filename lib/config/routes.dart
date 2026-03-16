@@ -46,23 +46,13 @@ class AppRoutes {
       return adminDashboard;
     }
 
-    // Housekeeping department gets their own dashboard
-    if (department == Departments.housekeeping) {
-      return housekeepingDashboard;
-    }
-
-    // Front Office managers/supervisors use manager dashboard to see all rooms
-    if (department == Departments.frontOffice && 
-        (role == UserRole.manager || role == UserRole.supervisor)) {
-      return managerDashboard;
-    }
-
-    // Regular managers go to manager dashboard
+    // Managers (all departments) go to manager dashboard
     if (role == UserRole.manager) {
       return managerDashboard;
     }
 
-    // Default: employee dashboard
+    // Everyone else (staff, supervisors, all departments including HK and Front Office)
+    // uses the same employee dashboard
     return employeeDashboard;
   }
 }

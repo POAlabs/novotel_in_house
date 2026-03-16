@@ -649,7 +649,6 @@ class _ManagerDashboardState extends State<ManagerDashboard> {
     // Navigate based on room status and user permissions
     switch (room.status) {
       case RoomStatus.checkout:
-        // Housekeeping staff can start cleaning
         if (user.department == 'Housekeeping' || user.isSystemAdmin) {
           Navigator.push(
             context,
@@ -662,7 +661,6 @@ class _ManagerDashboardState extends State<ManagerDashboard> {
         }
         break;
       case RoomStatus.cleaning:
-        // The cleaner or supervisor can continue
         if (room.cleaningStartedBy == user.uid || 
             user.role == UserRole.supervisor || 
             user.role == UserRole.manager ||
@@ -678,7 +676,6 @@ class _ManagerDashboardState extends State<ManagerDashboard> {
         }
         break;
       case RoomStatus.inspection:
-        // Supervisors and managers can inspect
         if (user.role == UserRole.supervisor || 
             user.role == UserRole.manager ||
             user.isSystemAdmin) {
@@ -692,9 +689,158 @@ class _ManagerDashboardState extends State<ManagerDashboard> {
           setState(() => _selectedFloorId = floorId);
         }
         break;
-      default:
-        setState(() => _selectedFloorId = floorId);
+      case RoomStatus.occupied:
+        // Front Office can mark occupied rooms as checkout (guest left)
+        if (user.isFrontOffice || user.isSystemAdmin) {
+          _showRoomActionDialog(room);
+        } else {
+          setState(() => _selectedFloorId = floorId);
+        }
+        break;
+      case RoomStatus.ready:
+        // Front Office can mark ready rooms as occupied (guest checked in)
+        if (user.isFrontOffice || user.isSystemAdmin) {
+          _showRoomActionDialog(room);
+        } else {
+          setState(() => _selectedFloorId = floorId);
+        }
+        break;
     }
+  }
+
+  /// Show room action dialog for Front Office
+  void _showRoomActionDialog(RoomModel room) {
+    final user = _currentUser;
+    if (user == null) return;
+
+    final isOccupied = room.status == RoomStatus.occupied;
+    final isReady = room.status == RoomStatus.ready;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Room ${room.roomNumber}',
+          style: GoogleFonts.inter(
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
+            color: kDark,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Current status
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: room.status.backgroundColor,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: room.status.borderColor),
+              ),
+              child: Text(
+                room.status.displayName.toUpperCase(),
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: room.status.color,
+                  letterSpacing: 1,
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            if (isOccupied) ...[
+              // Mark as Checkout
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    Navigator.pop(context);
+                    try {
+                      await _roomService.markCheckout(
+                        roomId: room.id,
+                        user: user,
+                      );
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Room ${room.roomNumber} marked for cleaning'),
+                            backgroundColor: const Color(0xFFEF4444),
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.redAccent),
+                        );
+                      }
+                    }
+                  },
+                  icon: const Icon(Icons.cleaning_services, size: 18),
+                  label: const Text('GUEST CHECKED OUT', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFEF4444),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: 0,
+                  ),
+                ),
+              ),
+            ],
+            if (isReady) ...[
+              // Mark as Occupied
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    Navigator.pop(context);
+                    try {
+                      await _roomService.markOccupied(
+                        roomId: room.id,
+                        user: user,
+                      );
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Room ${room.roomNumber} marked as occupied'),
+                            backgroundColor: const Color(0xFF3B82F6),
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.redAccent),
+                        );
+                      }
+                    }
+                  },
+                  icon: const Icon(Icons.person, size: 18),
+                  label: const Text('GUEST CHECKED IN', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF3B82F6),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: 0,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel', style: TextStyle(color: kGrey)),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _areaCard(String area, bool hasIssue, String floorId) {

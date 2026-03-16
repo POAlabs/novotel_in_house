@@ -3,12 +3,15 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../models/room_model.dart';
 import '../../models/user_model.dart';
+import '../../models/issue_model.dart';
 import '../../services/room_service.dart';
 import '../../services/auth_service.dart';
+import '../../services/issue_service.dart';
 import '../../widgets/room_status_card.dart';
 import '../settings_screen.dart';
 import 'room_cleaning_screen.dart';
 import 'room_inspection_screen.dart';
+import '../front_office/room_management_screen.dart';
 
 /// Housekeeping Dashboard
 /// Shows rooms needing attention filtered by status
@@ -31,6 +34,10 @@ class _HousekeepingDashboardState extends State<HousekeepingDashboard> {
 
   // Services
   final RoomService _roomService = RoomService();
+  final IssueService _issueService = IssueService();
+  
+  // Live issues from Firebase
+  List<IssueModel> _issues = [];
   
   // Get current user
   UserModel? get _currentUser => AuthService().currentUser;
@@ -140,6 +147,16 @@ class _HousekeepingDashboardState extends State<HousekeepingDashboard> {
   // ─── HOME VIEW ────────────────────────────────────────────────────
 
   Widget _buildHomeView() {
+    // Show supervisor view or staff view based on role
+    if (_canApproveRooms) {
+      return _buildSupervisorHomeView();
+    } else {
+      return _buildStaffHomeView();
+    }
+  }
+  
+  /// Housekeeping Staff Home View - Focus on rooms to clean
+  Widget _buildStaffHomeView() {
     return StreamBuilder<List<RoomModel>>(
       stream: _roomService.getRoomsNeedingAttention(),
       builder: (context, snapshot) {
@@ -148,7 +165,7 @@ class _HousekeepingDashboardState extends State<HousekeepingDashboard> {
         // Separate rooms by status
         final checkoutRooms = rooms.where((r) => r.status == RoomStatus.checkout).toList();
         final cleaningRooms = rooms.where((r) => r.status == RoomStatus.cleaning).toList();
-        final inspectionRooms = rooms.where((r) => r.status == RoomStatus.inspection).toList();
+        final readyRooms = rooms.where((r) => r.status == RoomStatus.ready).toList();
 
         return SingleChildScrollView(
           padding: const EdgeInsets.all(20),
@@ -159,30 +176,89 @@ class _HousekeepingDashboardState extends State<HousekeepingDashboard> {
               _buildHeader(),
               const SizedBox(height: 24),
               
-              // Status summary cards
-              _buildStatusSummary(
-                checkoutCount: checkoutRooms.length,
-                cleaningCount: cleaningRooms.length,
-                inspectionCount: inspectionRooms.length,
+              // Staff-specific metrics
+              _buildStaffMetrics(
+                needsCleaningCount: checkoutRooms.length,
+                inProgressCount: cleaningRooms.length,
+                cleanedTodayCount: readyRooms.length,
               ),
               const SizedBox(height: 28),
 
-              // Checkout section (needs cleaning) - RED
-              if (checkoutRooms.isNotEmpty || _isFrontOffice) ...[
+              // Rooms needing cleaning - RED (Priority for staff)
+              if (checkoutRooms.isNotEmpty) ...[
                 _buildSectionHeader(
                   'NEEDS CLEANING',
                   color: const Color(0xFFEF4444),
                   count: checkoutRooms.length,
                 ),
                 const SizedBox(height: 12),
-                if (checkoutRooms.isEmpty)
-                  _buildEmptyState('No rooms waiting for cleaning')
-                else
-                  ...checkoutRooms.map((room) => _buildRoomCard(room)),
+                ...checkoutRooms.map((room) => _buildRoomCard(room)),
                 const SizedBox(height: 24),
               ],
 
               // Cleaning in progress section - ORANGE
+              if (cleaningRooms.isNotEmpty) ...[
+                _buildSectionHeader(
+                  'IN PROGRESS',
+                  color: const Color(0xFFF59E0B),
+                  count: cleaningRooms.length,
+                ),
+                const SizedBox(height: 12),
+                ...cleaningRooms.map((room) => _buildRoomCard(room)),
+              ],
+
+              // Empty state if nothing needs attention
+              if (checkoutRooms.isEmpty && cleaningRooms.isEmpty)
+                _buildAllClearState(),
+            ],
+          ),
+        );
+      },
+    );
+  }
+  
+  /// Housekeeping Supervisor Home View - Focus on inspection
+  Widget _buildSupervisorHomeView() {
+    return StreamBuilder<List<RoomModel>>(
+      stream: _roomService.getRoomsNeedingAttention(),
+      builder: (context, snapshot) {
+        final rooms = snapshot.data ?? [];
+        
+        // Separate rooms by status
+        final inspectionRooms = rooms.where((r) => r.status == RoomStatus.inspection).toList();
+        final cleaningRooms = rooms.where((r) => r.status == RoomStatus.cleaning).toList();
+        final checkoutRooms = rooms.where((r) => r.status == RoomStatus.checkout).toList();
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              _buildHeader(),
+              const SizedBox(height: 24),
+              
+              // Supervisor-specific metrics
+              _buildSupervisorMetrics(
+                awaitingInspectionCount: inspectionRooms.length,
+                cleaningCount: cleaningRooms.length,
+                checkoutCount: checkoutRooms.length,
+              ),
+              const SizedBox(height: 28),
+
+              // Rooms awaiting inspection - YELLOW (Priority for supervisors)
+              if (inspectionRooms.isNotEmpty) ...[
+                _buildSectionHeader(
+                  'AWAITING INSPECTION',
+                  color: const Color(0xFFEAB308),
+                  count: inspectionRooms.length,
+                ),
+                const SizedBox(height: 12),
+                ...inspectionRooms.map((room) => _buildRoomCard(room)),
+                const SizedBox(height: 24),
+              ],
+
+              // Cleaning in progress
               if (cleaningRooms.isNotEmpty) ...[
                 _buildSectionHeader(
                   'CLEANING IN PROGRESS',
@@ -193,20 +269,20 @@ class _HousekeepingDashboardState extends State<HousekeepingDashboard> {
                 ...cleaningRooms.map((room) => _buildRoomCard(room)),
                 const SizedBox(height: 24),
               ],
-
-              // Inspection section - YELLOW (Supervisors only see this prominently)
-              if (inspectionRooms.isNotEmpty && _canApproveRooms) ...[
+              
+              // Rooms waiting to be cleaned
+              if (checkoutRooms.isNotEmpty) ...[
                 _buildSectionHeader(
-                  'AWAITING INSPECTION',
-                  color: const Color(0xFFEAB308),
-                  count: inspectionRooms.length,
+                  'NEEDS CLEANING',
+                  color: const Color(0xFFEF4444),
+                  count: checkoutRooms.length,
                 ),
                 const SizedBox(height: 12),
-                ...inspectionRooms.map((room) => _buildRoomCard(room)),
+                ...checkoutRooms.map((room) => _buildRoomCard(room)),
               ],
 
-              // Empty state if nothing needs attention
-              if (checkoutRooms.isEmpty && cleaningRooms.isEmpty && inspectionRooms.isEmpty)
+              // Empty state
+              if (inspectionRooms.isEmpty && cleaningRooms.isEmpty && checkoutRooms.isEmpty)
                 _buildAllClearState(),
             ],
           ),
@@ -240,19 +316,58 @@ class _HousekeepingDashboardState extends State<HousekeepingDashboard> {
     );
   }
 
-  Widget _buildStatusSummary({
-    required int checkoutCount,
-    required int cleaningCount,
-    required int inspectionCount,
+  /// Staff metrics - Focus on cleaning workload
+  Widget _buildStaffMetrics({
+    required int needsCleaningCount,
+    required int inProgressCount,
+    required int cleanedTodayCount,
   }) {
     return Row(
       children: [
         Expanded(
           child: _buildStatCard(
-            count: checkoutCount,
-            label: 'Checkout',
+            count: needsCleaningCount,
+            label: 'To Clean',
             color: const Color(0xFFEF4444),
             icon: Icons.cleaning_services,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _buildStatCard(
+            count: inProgressCount,
+            label: 'In Progress',
+            color: const Color(0xFFF59E0B),
+            icon: Icons.autorenew,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _buildStatCard(
+            count: cleanedTodayCount,
+            label: 'Cleaned',
+            color: const Color(0xFF10B981),
+            icon: Icons.check_circle,
+          ),
+        ),
+      ],
+    );
+  }
+  
+  /// Supervisor metrics - Focus on inspection and oversight
+  Widget _buildSupervisorMetrics({
+    required int awaitingInspectionCount,
+    required int cleaningCount,
+    required int checkoutCount,
+  }) {
+    return Row(
+      children: [
+        Expanded(
+          child: _buildStatCard(
+            count: awaitingInspectionCount,
+            label: 'Inspect',
+            color: const Color(0xFFEAB308),
+            icon: Icons.search,
           ),
         ),
         const SizedBox(width: 12),
@@ -267,10 +382,10 @@ class _HousekeepingDashboardState extends State<HousekeepingDashboard> {
         const SizedBox(width: 12),
         Expanded(
           child: _buildStatCard(
-            count: inspectionCount,
-            label: 'Inspection',
-            color: const Color(0xFFEAB308),
-            icon: Icons.search,
+            count: checkoutCount,
+            label: 'Pending',
+            color: const Color(0xFFEF4444),
+            icon: Icons.pending_actions,
           ),
         ),
       ],
@@ -393,27 +508,24 @@ class _HousekeepingDashboardState extends State<HousekeepingDashboard> {
           ),
         );
       case RoomStatus.cleaning:
-        // Show continue cleaning button if this user started it
-        if (room.cleaningStartedBy == _currentUser?.uid) {
-          return SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () => _openRoomScreen(room),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFF59E0B),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                elevation: 0,
-              ),
-              child: const Text(
-                'CONTINUE CLEANING',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1),
-              ),
+        // Any housekeeping staff can continue cleaning any room
+        return SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: () => _openRoomScreen(room),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFF59E0B),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              elevation: 0,
             ),
-          );
-        }
-        return null;
+            child: const Text(
+              'CONTINUE CLEANING',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1),
+            ),
+          ),
+        );
       case RoomStatus.inspection:
         // Supervisors can inspect
         if (_canApproveRooms) {
@@ -504,65 +616,75 @@ class _HousekeepingDashboardState extends State<HousekeepingDashboard> {
   // ─── ROOMS OVERVIEW (Building Tab) ────────────────────────────────
 
   Widget _buildRoomsOverview() {
-    return StreamBuilder<List<RoomModel>>(
-      stream: _roomService.getAllRooms(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+    return StreamBuilder<List<IssueModel>>(
+      stream: _issueService.getAllOngoingIssues(),
+      builder: (context, issueSnapshot) {
+        // Update local issues list when data changes
+        if (issueSnapshot.hasData) {
+          _issues = issueSnapshot.data!;
         }
-
-        final rooms = snapshot.data ?? [];
         
-        // Group rooms by floor
-        final roomsByFloor = <String, List<RoomModel>>{};
-        for (var room in rooms) {
-          roomsByFloor.putIfAbsent(room.floor, () => []).add(room);
-        }
+        return StreamBuilder<List<RoomModel>>(
+          stream: _roomService.getAllRooms(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-        // Sort floors
-        final sortedFloors = roomsByFloor.keys.toList()
-          ..sort((a, b) => int.parse(a).compareTo(int.parse(b)));
+            final rooms = snapshot.data ?? [];
+            
+            // Group rooms by floor
+            final roomsByFloor = <String, List<RoomModel>>{};
+            for (var room in rooms) {
+              roomsByFloor.putIfAbsent(room.floor, () => []).add(room);
+            }
 
-        return CustomScrollView(
-          slivers: [
-            // Header
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'ROOMS OVERVIEW',
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 2,
-                        color: const Color(0xFF3B82F6),
-                      ),
+            // Sort floors
+            final sortedFloors = roomsByFloor.keys.toList()
+              ..sort((a, b) => int.parse(a).compareTo(int.parse(b)));
+
+            return CustomScrollView(
+              slivers: [
+                // Header
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'ROOMS OVERVIEW',
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 2,
+                            color: const Color(0xFF3B82F6),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        // Legend
+                        const RoomStatusLegend(),
+                      ],
                     ),
-                    const SizedBox(height: 12),
-                    // Legend
-                    const RoomStatusLegend(),
-                  ],
+                  ),
                 ),
-              ),
-            ),
-            // Floor sections
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-              sliver: SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    final floor = sortedFloors[index];
-                    final floorRooms = roomsByFloor[floor]!;
-                    return _buildFloorSection(floor, floorRooms);
-                  },
-                  childCount: sortedFloors.length,
+                // Floor sections
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        final floor = sortedFloors[index];
+                        final floorRooms = roomsByFloor[floor]!;
+                        return _buildFloorSection(floor, floorRooms);
+                      },
+                      childCount: sortedFloors.length,
+                    ),
+                  ),
                 ),
-              ),
-            ),
-          ],
+              ],
+            );
+          },
         );
       },
     );
@@ -629,10 +751,17 @@ class _HousekeepingDashboardState extends State<HousekeepingDashboard> {
           Wrap(
             spacing: 8,
             runSpacing: 8,
-            children: rooms.map((room) => RoomStatusCard(
-              room: room,
-              onTap: () => _openRoomScreen(room),
-            )).toList(),
+            children: rooms.map((room) {
+              // Check if room has an issue
+              final roomHasIssue = _issues.any(
+                (i) => i.area == 'Room ${room.roomNumber}' && i.floor == room.floor && i.isOngoing,
+              );
+              return RoomStatusCard(
+                room: room,
+                hasIssue: roomHasIssue,
+                onTap: () => _handleRoomTap(room),
+              );
+            }).toList(),
           ),
         ],
       ),
@@ -671,6 +800,35 @@ class _HousekeepingDashboardState extends State<HousekeepingDashboard> {
     }
   }
 
+  /// Handle room card tap - navigate to appropriate screen based on room status and user role
+  void _handleRoomTap(RoomModel room) {
+    final user = _currentUser;
+    if (user == null) return;
+    
+    // Housekeeping staff: Handle cleaning workflow
+    if (user.isHousekeeping || user.isSystemAdmin) {
+      _openRoomScreen(room);
+      return;
+    }
+    
+    // Front Office staff: Navigate to premium room management screen
+    if (user.isFrontOffice) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => RoomManagementScreen(
+            room: room,
+            currentUser: user,
+          ),
+        ),
+      );
+      return;
+    }
+    
+    // Other departments: Just view room details
+    _openRoomScreen(room);
+  }
+  
   void _openRoomScreen(RoomModel room) {
     if (room.status == RoomStatus.inspection && _canApproveRooms) {
       // Supervisors go to inspection screen
