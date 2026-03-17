@@ -23,11 +23,14 @@ class HousekeepingDashboard extends StatefulWidget {
   State<HousekeepingDashboard> createState() => _HousekeepingDashboardState();
 }
 
-class _HousekeepingDashboardState extends State<HousekeepingDashboard> {
+class _HousekeepingDashboardState extends State<HousekeepingDashboard> with TickerProviderStateMixin {
   // Design colors
   static const Color kBg = Color(0xFFF8FAFC);
   static const Color kDark = Color(0xFF0F172A);
   static const Color kGrey = Color(0xFF64748B);
+  static const Color kLuminousGreen = Color(0xFF10B981); // Luminous green for Need Supervision
+  static const Color kGreyLight = Color(0xFF94A3B8); // Light grey
+  static const Color kGreyMedium = Color(0xFF64748B); // Medium grey
 
   // Navigation
   int _currentNavIndex = 1; // Start on Home
@@ -43,6 +46,91 @@ class _HousekeepingDashboardState extends State<HousekeepingDashboard> {
   UserModel? get _currentUser => AuthService().currentUser;
   bool get _canApproveRooms => _currentUser?.canApproveRooms ?? false;
   bool get _isFrontOffice => _currentUser?.isFrontOffice ?? false;
+  
+  // Animation controllers for Supervisor view
+  late AnimationController _hkEntryController;
+  late AnimationController _hkPulseController;
+  late Animation<double> _hkHeaderFade;
+  late Animation<double> _hkDonutDraw;
+  late Animation<double> _hkListStagger1;
+  late Animation<double> _hkListStagger2;
+  late Animation<double> _hkListStagger3;
+  late Animation<double> _hkPulseOpacity;
+  
+  @override
+  void initState() {
+    super.initState();
+    _initAnimations();
+  }
+  
+  void _initAnimations() {
+    // Main entry animation (1.5 seconds)
+    _hkEntryController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    );
+    
+    // Header fade in
+    _hkHeaderFade = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _hkEntryController,
+        curve: const Interval(0.0, 0.3, curve: Curves.easeOut),
+      ),
+    );
+    
+    // Donut chart drawing animation with elastic ease-out
+    _hkDonutDraw = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _hkEntryController,
+        curve: const Interval(0.1, 0.7, curve: Curves.easeOut),
+      ),
+    );
+    
+    // Staggered list item animations (waterfall effect)
+    _hkListStagger1 = Tween<double>(begin: 20.0, end: 0.0).animate(
+      CurvedAnimation(
+        parent: _hkEntryController,
+        curve: const Interval(0.4, 0.7, curve: Curves.easeOut),
+      ),
+    );
+    
+    _hkListStagger2 = Tween<double>(begin: 20.0, end: 0.0).animate(
+      CurvedAnimation(
+        parent: _hkEntryController,
+        curve: const Interval(0.5, 0.8, curve: Curves.easeOut),
+      ),
+    );
+    
+    _hkListStagger3 = Tween<double>(begin: 20.0, end: 0.0).animate(
+      CurvedAnimation(
+        parent: _hkEntryController,
+        curve: const Interval(0.6, 0.9, curve: Curves.easeOut),
+      ),
+    );
+    
+    // Start entry animation
+    _hkEntryController.forward();
+    
+    // Continuous pulse for Need Supervision indicator (2 second cycle)
+    _hkPulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2000),
+    )..repeat(reverse: true);
+    
+    _hkPulseOpacity = Tween<double>(begin: 0.6, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _hkPulseController,
+        curve: Curves.easeInOut,
+      ),
+    );
+  }
+  
+  @override
+  void dispose() {
+    _hkEntryController.dispose();
+    _hkPulseController.dispose();
+    super.dispose();
+  }
 
   /// Handle back button press
   bool _handleBackPress() {
@@ -116,7 +204,15 @@ class _HousekeepingDashboardState extends State<HousekeepingDashboard> {
     final isActive = _currentNavIndex == index;
     const activeColor = Color(0xFF3B82F6);
     return GestureDetector(
-      onTap: () => setState(() => _currentNavIndex = index),
+      onTap: () {
+        final wasOnHome = _currentNavIndex == 1;
+        setState(() => _currentNavIndex = index);
+        // Restart animations when navigating to home
+        if (index == 1 && !wasOnHome && _canApproveRooms) {
+          _hkEntryController.reset();
+          _hkEntryController.forward();
+        }
+      },
       behavior: HitTestBehavior.opaque,
       child: SizedBox(
         width: 72,
@@ -217,80 +313,318 @@ class _HousekeepingDashboardState extends State<HousekeepingDashboard> {
     );
   }
   
-  /// Housekeeping Supervisor Home View - Focus on inspection
+  /// Housekeeping Supervisor Home View - Premium animated dashboard
   Widget _buildSupervisorHomeView() {
     return StreamBuilder<List<RoomModel>>(
-      stream: _roomService.getRoomsNeedingAttention(),
+      stream: _roomService.getAllRooms(),
       builder: (context, snapshot) {
         final rooms = snapshot.data ?? [];
+        final totalRooms = rooms.length;
         
-        // Separate rooms by status
-        final inspectionRooms = rooms.where((r) => r.status == RoomStatus.inspection).toList();
-        final cleaningRooms = rooms.where((r) => r.status == RoomStatus.cleaning).toList();
-        final checkoutRooms = rooms.where((r) => r.status == RoomStatus.checkout).toList();
+        // Calculate room status counts
+        final needSupervision = rooms.where((r) => r.status == RoomStatus.inspection).length;
+        final underCleaning = rooms.where((r) => 
+          r.status == RoomStatus.cleaning || r.status == RoomStatus.checkout
+        ).length;
+        final occupied = rooms.where((r) => r.status == RoomStatus.occupied).length;
 
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              _buildHeader(),
-              const SizedBox(height: 24),
-              
-              // Supervisor-specific metrics
-              _buildSupervisorMetrics(
-                awaitingInspectionCount: inspectionRooms.length,
-                cleaningCount: cleaningRooms.length,
-                checkoutCount: checkoutRooms.length,
+        return AnimatedBuilder(
+          animation: _hkEntryController,
+          builder: (context, child) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Header with fade in
+                  Opacity(
+                    opacity: _hkHeaderFade.value,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'NOVOTEL HOTEL',
+                          style: GoogleFonts.inter(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: const Color(0xFF1E3A5F),
+                            letterSpacing: 1,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'In-House App · Housekeeping Supervisor',
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: const Color(0xFF94A3B8),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  
+                  // Section title
+                  Opacity(
+                    opacity: _hkHeaderFade.value,
+                    child: Text(
+                      'Room Status Overview',
+                      style: GoogleFonts.inter(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: kDark,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Opacity(
+                    opacity: _hkHeaderFade.value,
+                    child: Text(
+                      'REAL-TIME HOUSEKEEPING DISTRIBUTION',
+                      style: GoogleFonts.inter(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 1.5,
+                        color: const Color(0xFF94A3B8),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  
+                  // Animated Donut Chart
+                  _buildAnimatedDonutChart(
+                    total: totalRooms,
+                    needSupervision: needSupervision,
+                    underCleaning: underCleaning,
+                    occupied: occupied,
+                    progress: _hkDonutDraw.value,
+                  ),
+                  const SizedBox(height: 32),
+                  
+                  // Staggered Status List
+                  _buildStaggeredStatusList(
+                    total: totalRooms,
+                    needSupervision: needSupervision,
+                    underCleaning: underCleaning,
+                    occupied: occupied,
+                  ),
+                ],
               ),
-              const SizedBox(height: 28),
-
-              // Rooms awaiting inspection - YELLOW (Priority for supervisors)
-              if (inspectionRooms.isNotEmpty) ...[
-                _buildSectionHeader(
-                  'AWAITING INSPECTION',
-                  color: const Color(0xFFEAB308),
-                  count: inspectionRooms.length,
-                ),
-                const SizedBox(height: 12),
-                ...inspectionRooms.map((room) => _buildRoomCard(room)),
-                const SizedBox(height: 24),
-              ],
-
-              // Cleaning in progress
-              if (cleaningRooms.isNotEmpty) ...[
-                _buildSectionHeader(
-                  'CLEANING IN PROGRESS',
-                  color: const Color(0xFFF59E0B),
-                  count: cleaningRooms.length,
-                ),
-                const SizedBox(height: 12),
-                ...cleaningRooms.map((room) => _buildRoomCard(room)),
-                const SizedBox(height: 24),
-              ],
-              
-              // Rooms waiting to be cleaned
-              if (checkoutRooms.isNotEmpty) ...[
-                _buildSectionHeader(
-                  'NEEDS CLEANING',
-                  color: const Color(0xFFEF4444),
-                  count: checkoutRooms.length,
-                ),
-                const SizedBox(height: 12),
-                ...checkoutRooms.map((room) => _buildRoomCard(room)),
-              ],
-
-              // Empty state
-              if (inspectionRooms.isEmpty && cleaningRooms.isEmpty && checkoutRooms.isEmpty)
-                _buildAllClearState(),
-            ],
-          ),
+            );
+          },
         );
       },
     );
   }
 
+  /// Animated donut chart showing room status distribution
+  Widget _buildAnimatedDonutChart({
+    required int total,
+    required int needSupervision,
+    required int underCleaning,
+    required int occupied,
+    required double progress,
+  }) {
+    return Center(
+      child: Container(
+        width: 240,
+        height: 240,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 24,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Stack(
+          children: [
+            // Custom painted donut chart
+            CustomPaint(
+              size: const Size(240, 240),
+              painter: _DonutChartPainter(
+                total: total,
+                needSupervision: needSupervision,
+                underCleaning: underCleaning,
+                occupied: occupied,
+                progress: progress,
+              ),
+            ),
+            // Center number
+            Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '$total',
+                    style: GoogleFonts.inter(
+                      fontSize: 56,
+                      fontWeight: FontWeight.w800,
+                      color: kDark,
+                      height: 1,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'TOTAL ROOMS',
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: kGrey,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  /// Staggered status list with slide-up animations
+  Widget _buildStaggeredStatusList({
+    required int total,
+    required int needSupervision,
+    required int underCleaning,
+    required int occupied,
+  }) {
+    return Column(
+      children: [
+        // Need Supervision - with pulsing animation
+        AnimatedBuilder(
+          animation: _hkPulseController,
+          builder: (context, child) {
+            return Transform.translate(
+              offset: Offset(0, _hkListStagger1.value),
+              child: Opacity(
+                opacity: _hkListStagger1.value < 15 ? (20 - _hkListStagger1.value) / 20 : 1.0,
+                child: Opacity(
+                  opacity: _hkPulseOpacity.value,
+                  child: _buildStatusItem(
+                    count: needSupervision,
+                    label: 'Need Supervision',
+                    color: kLuminousGreen,
+                    total: total,
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 12),
+        
+        // Under Cleaning
+        Transform.translate(
+          offset: Offset(0, _hkListStagger2.value),
+          child: Opacity(
+            opacity: _hkListStagger2.value < 15 ? (20 - _hkListStagger2.value) / 20 : 1.0,
+            child: _buildStatusItem(
+              count: underCleaning,
+              label: 'Under Cleaning',
+              color: kGreyLight,
+              total: total,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        
+        // Occupied
+        Transform.translate(
+          offset: Offset(0, _hkListStagger3.value),
+          child: Opacity(
+            opacity: _hkListStagger3.value < 15 ? (20 - _hkListStagger3.value) / 20 : 1.0,
+            child: _buildStatusItem(
+              count: occupied,
+              label: 'Occupied',
+              color: kGreyMedium,
+              total: total,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+  
+  /// Individual status item in the list
+  Widget _buildStatusItem({
+    required int count,
+    required String label,
+    required Color color,
+    required int total,
+  }) {
+    final percentage = total > 0 ? ((count / total) * 100).round() : 0;
+    
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withOpacity(0.3), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // Color indicator
+          Container(
+            width: 8,
+            height: 48,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+          const SizedBox(width: 16),
+          // Label and count
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: kDark,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '$percentage% of total',
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: kGrey,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Count number
+          Text(
+            '$count',
+            style: GoogleFonts.inter(
+              fontSize: 32,
+              fontWeight: FontWeight.w800,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  
   Widget _buildHeader() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -850,5 +1184,116 @@ class _HousekeepingDashboardState extends State<HousekeepingDashboard> {
       // Start cleaning
       _startCleaning(room);
     }
+  }
+}
+
+/// Custom painter for animated donut chart
+class _DonutChartPainter extends CustomPainter {
+  final int total;
+  final int needSupervision;
+  final int underCleaning;
+  final int occupied;
+  final double progress;
+  
+  _DonutChartPainter({
+    required this.total,
+    required this.needSupervision,
+    required this.underCleaning,
+    required this.occupied,
+    required this.progress,
+  });
+  
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (total == 0) return;
+    
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2 - 20;
+    final strokeWidth = 24.0;
+    
+    // Calculate angles for each segment
+    final supervisionAngle = (needSupervision / total) * 360 * progress;
+    final cleaningAngle = (underCleaning / total) * 360 * progress;
+    final occupiedAngle = (occupied / total) * 360 * progress;
+    
+    // Background ring (light grey)
+    final bgPaint = Paint()
+      ..color = const Color(0xFFF1F5F9)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
+    
+    canvas.drawCircle(center, radius, bgPaint);
+    
+    // Draw segments sequentially
+    double startAngle = -90; // Start from top
+    
+    // 1. Need Supervision (Luminous Green)
+    if (supervisionAngle > 0) {
+      final paint1 = Paint()
+        ..color = const Color(0xFF10B981)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth
+        ..strokeCap = StrokeCap.round;
+      
+      final rect = Rect.fromCircle(center: center, radius: radius);
+      canvas.drawArc(
+        rect,
+        _degreesToRadians(startAngle),
+        _degreesToRadians(supervisionAngle),
+        false,
+        paint1,
+      );
+      startAngle += supervisionAngle;
+    }
+    
+    // 2. Under Cleaning (Light Grey)
+    if (cleaningAngle > 0) {
+      final paint2 = Paint()
+        ..color = const Color(0xFF94A3B8)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth
+        ..strokeCap = StrokeCap.round;
+      
+      final rect = Rect.fromCircle(center: center, radius: radius);
+      canvas.drawArc(
+        rect,
+        _degreesToRadians(startAngle),
+        _degreesToRadians(cleaningAngle),
+        false,
+        paint2,
+      );
+      startAngle += cleaningAngle;
+    }
+    
+    // 3. Occupied (Medium Grey)
+    if (occupiedAngle > 0) {
+      final paint3 = Paint()
+        ..color = const Color(0xFF64748B)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth
+        ..strokeCap = StrokeCap.round;
+      
+      final rect = Rect.fromCircle(center: center, radius: radius);
+      canvas.drawArc(
+        rect,
+        _degreesToRadians(startAngle),
+        _degreesToRadians(occupiedAngle),
+        false,
+        paint3,
+      );
+    }
+  }
+  
+  double _degreesToRadians(double degrees) {
+    return degrees * (3.141592653589793 / 180);
+  }
+  
+  @override
+  bool shouldRepaint(_DonutChartPainter oldDelegate) {
+    return oldDelegate.progress != progress ||
+           oldDelegate.needSupervision != needSupervision ||
+           oldDelegate.underCleaning != underCleaning ||
+           oldDelegate.occupied != occupied;
   }
 }

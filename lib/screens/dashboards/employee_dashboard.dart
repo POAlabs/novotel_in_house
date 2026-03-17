@@ -111,6 +111,22 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> with TickerProvid
   late AnimationController _entryController;
   late Animation<double> _centerScaleAnimation;
   late Animation<double> _orbitExpansionAnimation;
+  
+  // Front Office animation controllers
+  late AnimationController _foEntryController;
+  late Animation<double> _foMainCircleScale;
+  late Animation<double> _foSecondaryCirclesScale;
+  late Animation<double> _foChartSlideUp;
+  late Animation<double> _foHeaderFade;
+  
+  // Housekeeping Supervisor animation controllers
+  late AnimationController _hkEntryController;
+  late Animation<double> _hkHeaderFade;
+  late Animation<double> _hkDonutDraw;
+  late Animation<double> _hkListStagger1;
+  late Animation<double> _hkListStagger2;
+  late Animation<double> _hkListStagger3;
+  late Animation<double> _hkPulseOpacity;
 
   @override
   void initState() {
@@ -149,6 +165,47 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> with TickerProvid
 
     // Start entry animation
     _entryController.forward();
+    
+    // Front Office entry animation (1.5 seconds for elegant reveal)
+    _foEntryController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    );
+    
+    // Header fade in
+    _foHeaderFade = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _foEntryController,
+        curve: const Interval(0.0, 0.3, curve: Curves.easeOut),
+      ),
+    );
+    
+    // Main circle scale with elastic bounce
+    _foMainCircleScale = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _foEntryController,
+        curve: const Interval(0.1, 0.6, curve: Curves.elasticOut),
+      ),
+    );
+    
+    // Secondary circles scale with delay
+    _foSecondaryCirclesScale = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _foEntryController,
+        curve: const Interval(0.3, 0.75, curve: Curves.elasticOut),
+      ),
+    );
+    
+    // Chart slide up from bottom
+    _foChartSlideUp = Tween<double>(begin: 50.0, end: 0.0).animate(
+      CurvedAnimation(
+        parent: _foEntryController,
+        curve: const Interval(0.5, 1.0, curve: Curves.easeOutCubic),
+      ),
+    );
+    
+    // Start Front Office animation
+    _foEntryController.forward();
   }
 
   @override
@@ -156,6 +213,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> with TickerProvid
     _floorViewScrollController.dispose();
     _orbitController.dispose();
     _entryController.dispose();
+    _foEntryController.dispose();
     super.dispose();
   }
 
@@ -981,166 +1039,364 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> with TickerProvid
     );
   }
   
-  /// Front Office Home View - Room status metrics
+  /// Front Office Home View - Premium room status dashboard with animations
   Widget _buildFrontOfficeHomeView() {
     return StreamBuilder<List<RoomModel>>(
       stream: _roomService.getAllRooms(),
       builder: (context, snapshot) {
         final rooms = snapshot.data ?? [];
+        final totalRooms = rooms.length;
         
         // Calculate metrics
-        final occupiedRooms = rooms.where((r) => r.status == RoomStatus.occupied).length;
         final readyRooms = rooms.where((r) => r.status == RoomStatus.ready).length;
+        final occupiedRooms = rooms.where((r) => r.status == RoomStatus.occupied).length;
         final cleaningRooms = rooms.where((r) => 
           r.status == RoomStatus.checkout || 
           r.status == RoomStatus.cleaning || 
           r.status == RoomStatus.inspection
         ).length;
         
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              Text(
-                'Front Office',
-                style: GoogleFonts.inter(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w800,
-                  color: kDark,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Room Management Dashboard',
-                style: GoogleFonts.inter(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: const Color(0xFF64748B),
-                ),
-              ),
-              const SizedBox(height: 24),
-              
-              // Front Office Metrics
-              Row(
+        return AnimatedBuilder(
+          animation: _foEntryController,
+          builder: (context, child) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: _buildFrontOfficeMetricCard(
-                      count: occupiedRooms,
-                      label: 'Occupied',
-                      color: const Color(0xFF3B82F6),
-                      icon: Icons.person,
+                  // Header with fade in
+                  Opacity(
+                    opacity: _foHeaderFade.value,
+                    child: _buildCommandCenterHeader(),
+                  ),
+                  const SizedBox(height: 32),
+                  
+                  // Main circular metric - Ready Rooms with scale animation
+                  Transform.scale(
+                    scale: _foMainCircleScale.value,
+                    child: Opacity(
+                      opacity: _foMainCircleScale.value,
+                      child: _buildCircularMetric(
+                        value: readyRooms,
+                        total: totalRooms,
+                        label: 'READY',
+                        subLabel: 'ROOMS',
+                        color: kGreen,
+                        size: 200,
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildFrontOfficeMetricCard(
-                      count: readyRooms,
-                      label: 'Ready',
-                      color: kGreen,
-                      icon: Icons.check_circle,
+                  const SizedBox(height: 28),
+                  
+                  // Secondary metrics - Occupied and Cleaning with delayed scale
+                  Transform.scale(
+                    scale: _foSecondaryCirclesScale.value,
+                    child: Opacity(
+                      opacity: _foSecondaryCirclesScale.value,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: _buildCircularMetric(
+                              value: occupiedRooms,
+                              total: totalRooms,
+                              label: 'OCCUPIED',
+                              subLabel: '',
+                              color: const Color(0xFF3B82F6),
+                              size: 140,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: _buildCircularMetric(
+                              value: cleaningRooms,
+                              total: totalRooms,
+                              label: 'CLEANING',
+                              subLabel: '',
+                              color: const Color(0xFFF59E0B),
+                              size: 140,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildFrontOfficeMetricCard(
-                      count: cleaningRooms,
-                      label: 'Cleaning',
-                      color: const Color(0xFFF59E0B),
-                      icon: Icons.cleaning_services,
+                  const SizedBox(height: 32),
+                  
+                  // Guest Flow Section with slide up animation
+                  Transform.translate(
+                    offset: Offset(0, _foChartSlideUp.value),
+                    child: Opacity(
+                      opacity: _foChartSlideUp.value < 40 ? (40 - _foChartSlideUp.value) / 40 : 1.0,
+                      child: _buildGuestFlowSection(rooms),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 24),
-              
-              // Quick info card
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.04),
-                      blurRadius: 20,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Quick Actions',
-                      style: GoogleFonts.inter(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: kDark,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Tap any room on the Building screen to manage guest check-in and check-out.',
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: const Color(0xFF64748B),
-                        height: 1.5,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+            );
+          },
         );
       },
     );
   }
   
-  Widget _buildFrontOfficeMetricCard({
-    required int count,
+  /// Circular progress metric widget
+  Widget _buildCircularMetric({
+    required int value,
+    required int total,
     required String label,
+    required String subLabel,
     required Color color,
-    required IconData icon,
+    required double size,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.3)),
-        boxShadow: [
-          BoxShadow(
-            color: color.withOpacity(0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+    final progress = total > 0 ? value / total : 0.0;
+    
+    return Center(
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 24,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Stack(
+          children: [
+            // Circular progress ring
+            Positioned.fill(
+              child: Padding(
+                padding: const EdgeInsets.all(8),
+                child: CircularProgressIndicator(
+                  value: progress,
+                  strokeWidth: 8,
+                  backgroundColor: const Color(0xFFF1F5F9),
+                  valueColor: AlwaysStoppedAnimation<Color>(color),
+                  strokeCap: StrokeCap.round,
+                ),
+              ),
+            ),
+            // Center content
+            Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '$value',
+                    style: GoogleFonts.inter(
+                      fontSize: size * 0.28,
+                      fontWeight: FontWeight.w800,
+                      color: color,
+                      height: 1,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    label,
+                    style: GoogleFonts.inter(
+                      fontSize: size * 0.065,
+                      fontWeight: FontWeight.w700,
+                      color: kDark,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                  if (subLabel.isNotEmpty) ...[
+                    Text(
+                      subLabel,
+                      style: GoogleFonts.inter(
+                        fontSize: size * 0.055,
+                        fontWeight: FontWeight.w500,
+                        color: const Color(0xFF94A3B8),
+                        letterSpacing: 1,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
-      child: Column(
-        children: [
-          Icon(icon, color: color, size: 24),
-          const SizedBox(height: 8),
-          Text(
-            '$count',
-            style: GoogleFonts.inter(
-              fontSize: 24,
-              fontWeight: FontWeight.w800,
-              color: kDark,
+    );
+  }
+  
+  /// Guest Flow Section with bar chart
+  Widget _buildGuestFlowSection(List<RoomModel> rooms) {
+    // Calculate check-in and check-out trends for the last 7 days
+    final now = DateTime.now();
+    final weekData = List.generate(7, (index) {
+      final day = now.subtract(Duration(days: 6 - index));
+      return _GuestFlowDay(
+        day: day,
+        checkIns: 0, // TODO: Implement actual data tracking
+        checkOuts: 0, // TODO: Implement actual data tracking
+      );
+    });
+    
+    // Mock data for demonstration
+    weekData[0].checkIns = 12;
+    weekData[0].checkOuts = 8;
+    weekData[1].checkIns = 15;
+    weekData[1].checkOuts = 10;
+    weekData[2].checkIns = 18;
+    weekData[2].checkOuts = 14;
+    weekData[3].checkIns = 20;
+    weekData[3].checkOuts = 16;
+    weekData[4].checkIns = 17;
+    weekData[4].checkOuts = 19;
+    weekData[5].checkIns = 22;
+    weekData[5].checkOuts = 15;
+    weekData[6].checkIns = 19;
+    weekData[6].checkOuts = 17;
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Section header
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Guest Flow',
+                  style: GoogleFonts.inter(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: kDark,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Check-in vs Check-out',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: const Color(0xFF64748B),
+                  ),
+                ),
+              ],
             ),
-          ),
-          Text(
-            label,
-            style: GoogleFonts.inter(
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
-              color: const Color(0xFF64748B),
+            // Legend
+            Row(
+              children: [
+                _buildLegendItem('IN', const Color(0xFF3B82F6)),
+                const SizedBox(width: 12),
+                _buildLegendItem('OUT', const Color(0xFFF59E0B)),
+              ],
             ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        // Bar chart
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 20,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
-        ],
+          child: _buildGuestFlowChart(weekData),
+        ),
+      ],
+    );
+  }
+  
+  Widget _buildLegendItem(String label, Color color) {
+    return Row(
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: GoogleFonts.inter(
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+            color: const Color(0xFF64748B),
+          ),
+        ),
+      ],
+    );
+  }
+  
+  Widget _buildGuestFlowChart(List<_GuestFlowDay> data) {
+    final maxValue = data.fold<int>(0, (max, day) => 
+      [max, day.checkIns, day.checkOuts].reduce((a, b) => a > b ? a : b)
+    );
+    
+    return SizedBox(
+      height: 180,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: data.map((day) => _buildDayBar(day, maxValue)).toList(),
+      ),
+    );
+  }
+  
+  Widget _buildDayBar(_GuestFlowDay day, int maxValue) {
+    final dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final dayName = dayNames[day.day.weekday - 1];
+    
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 3),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            // Check-in bar
+            Flexible(
+              child: Container(
+                width: double.infinity,
+                height: maxValue > 0 ? (day.checkIns / maxValue) * 140 : 0,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF3B82F6),
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+                ),
+              ),
+            ),
+            const SizedBox(height: 2),
+            // Check-out bar
+            Flexible(
+              child: Container(
+                width: double.infinity,
+                height: maxValue > 0 ? (day.checkOuts / maxValue) * 140 : 0,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF59E0B),
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            // Day label
+            Text(
+              dayName,
+              style: GoogleFonts.inter(
+                fontSize: 9,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF94A3B8),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1176,6 +1432,12 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> with TickerProvid
   void _restartEntryAnimation() {
     _entryController.reset();
     _entryController.forward();
+    
+    // Also restart Front Office animations if user is Front Office
+    if (_currentUser?.isFrontOffice ?? false) {
+      _foEntryController.reset();
+      _foEntryController.forward();
+    }
   }
 
   /// Main orbital visualization with central count and orbiting floors
@@ -2630,4 +2892,17 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> with TickerProvid
       }
     }
   }
+}
+
+/// Helper class for guest flow chart data
+class _GuestFlowDay {
+  final DateTime day;
+  int checkIns;
+  int checkOuts;
+  
+  _GuestFlowDay({
+    required this.day,
+    required this.checkIns,
+    required this.checkOuts,
+  });
 }

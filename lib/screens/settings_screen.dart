@@ -75,6 +75,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
   /// Can access debug logs and system metrics (IT or System Admin only)
   bool get _canAccessSystemTools => _isITAdmin || _isSystemAdmin;
 
+  /// Get department-specific image path
+  String _getDepartmentImage(String department) {
+    switch (department) {
+      case 'IT':
+        return 'assets/it.jpeg';
+      case 'Front Office':
+        return 'assets/front_office.jpeg';
+      case 'Housekeeping':
+        return 'assets/house_keeping.jpeg';
+      case 'Engineering':
+        return 'assets/engeneering.jpeg';
+      default:
+        // Fallback to IT image for other departments (Security, F&B, etc.)
+        return 'assets/it.jpeg';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -210,24 +227,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
       child: Column(
         children: [
-          // Avatar with initials
+          // Avatar with department-specific image
           Container(
             width: 80,
             height: 80,
             decoration: BoxDecoration(
-              color: kDark,
               borderRadius: BorderRadius.circular(20),
             ),
-            child: Center(
-              child: Text(
-                user.displayName.isNotEmpty
-                    ? user.displayName.split(' ').map((n) => n.isNotEmpty ? n[0] : '').take(2).join().toUpperCase()
-                    : '?',
-                style: GoogleFonts.inter(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: Image.asset(
+                _getDepartmentImage(user.department),
+                width: 80,
+                height: 80,
+                fit: BoxFit.cover,
               ),
             ),
           ),
