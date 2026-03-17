@@ -10,11 +10,17 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../settings_screen.dart';
+import '../report_issue/report_issue_flow.dart';
+import '../housekeeping/room_cleaning_screen.dart';
+import '../housekeeping/room_inspection_screen.dart';
+import '../front_office/room_management_screen.dart';
 import '../../models/issue_model.dart';
 import '../../models/floor_model.dart';
 import '../../models/user_model.dart';
+import '../../models/room_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/issue_service.dart';
+import '../../services/room_service.dart';
 import '../../config/departments.dart';
 import '../../widgets/issue_action_sheets.dart';
 import '../../widgets/analytics/analytics_section.dart';
@@ -96,8 +102,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
   UserModel? get _currentUser => AuthService().currentUser;
 
   final IssueService _issueService = IssueService();
+  final RoomService _roomService = RoomService();
 
   List<IssueModel> _issues = [];
+  Map<String, RoomModel> _roomsMap = {};
 
   bool get _isViewingDepartment => _selectedView != null && _selectedView!.startsWith('department:');
   String? get _selectedDepartment => _isViewingDepartment ? _selectedView!.split(':')[1] : null;
@@ -129,6 +137,88 @@ class _AdminDashboardState extends State<AdminDashboard> {
     FloorModel(id: 'B3', name: 'Basement 3', areas: ['Engineering Workshop', 'Stores', 'Parking', 'General']),
   ];
 
+  /// Open the report issue flow
+  void _openReportIssueFlow() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const ReportIssueFlow(),
+      ),
+    );
+  }
+
+  /// Handle room card tap - navigate to appropriate screen based on status
+  void _onRoomTap(String roomNum, String floorId) {
+    final room = _roomsMap[roomNum];
+    if (room == null) {
+      setState(() => _selectedFloorId = floorId);
+      return;
+    }
+    
+    final user = _currentUser;
+    if (user == null) return;
+    
+    // Admins can access all room screens based on current status
+    switch (room.status) {
+      case RoomStatus.checkout:
+        // Can start cleaning
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => RoomCleaningScreen(roomId: room.id),
+          ),
+        );
+        break;
+      case RoomStatus.cleaning:
+        // Can view/continue cleaning
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => RoomCleaningScreen(roomId: room.id),
+          ),
+        );
+        break;
+      case RoomStatus.inspection:
+        // Can inspect
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => RoomInspectionScreen(roomId: room.id),
+          ),
+        );
+        break;
+      case RoomStatus.occupied:
+      case RoomStatus.ready:
+        // View room management screen
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => RoomManagementScreen(
+              room: room,
+              currentUser: user,
+            ),
+          ),
+        );
+        break;
+    }
+  }
+
+  /// Get appropriate icon for room status
+  IconData _getRoomStatusIcon(RoomStatus status) {
+    switch (status) {
+      case RoomStatus.occupied:
+        return Icons.person;
+      case RoomStatus.checkout:
+        return Icons.cleaning_services;
+      case RoomStatus.cleaning:
+        return Icons.autorenew;
+      case RoomStatus.inspection:
+        return Icons.search;
+      case RoomStatus.ready:
+        return Icons.check_circle;
+    }
+  }
+
   bool _handleBackPress() {
     if (_selectedFloorId != null) {
       setState(() => _selectedFloorId = null);
@@ -155,15 +245,23 @@ class _AdminDashboardState extends State<AdminDashboard> {
       },
       child: Scaffold(
         backgroundColor: kBg,
-        body: SafeArea(
+      body: SafeArea(
           bottom: false,
           child: StreamBuilder<List<IssueModel>>(
             stream: _issueService.getAllOngoingIssues(),
-            builder: (context, snapshot) {
-              if (snapshot.hasData) {
-                _issues = snapshot.data!;
+            builder: (context, issueSnapshot) {
+              if (issueSnapshot.hasData) {
+                _issues = issueSnapshot.data!;
               }
-              return _buildCurrentTabContent();
+              return StreamBuilder<List<RoomModel>>(
+                stream: _roomService.getAllRooms(),
+                builder: (context, roomSnapshot) {
+                  if (roomSnapshot.hasData) {
+                    _roomsMap = {for (var room in roomSnapshot.data!) room.roomNumber: room};
+                  }
+                  return _buildCurrentTabContent();
+                },
+              );
             },
           ),
         ),
@@ -366,15 +464,25 @@ class _AdminDashboardState extends State<AdminDashboard> {
   }
 
   Widget _roomCard(String roomNum, bool hasIssue, String floorId) {
+    // Get room status from room service data
+    final room = _roomsMap[roomNum];
+    final status = room?.status ?? RoomStatus.ready;
+    
+    // If room has an issue, override color to red
+    final displayColor = hasIssue ? kRed : status.color;
+    final displayBgColor = hasIssue ? const Color(0xFFFEF2F2) : status.backgroundColor;
+    final displayBorderColor = hasIssue ? const Color(0xFFFECACA) : status.borderColor;
+    final displayIcon = hasIssue ? Icons.warning_rounded : _getRoomStatusIcon(status);
+    
     return GestureDetector(
-      onTap: () => setState(() => _selectedFloorId = floorId),
+      onTap: () => _onRoomTap(roomNum, floorId),
       child: Container(
         width: 52,
         height: 44,
         decoration: BoxDecoration(
-          color: hasIssue ? const Color(0xFFFEF2F2) : const Color(0xFFF0FDF4),
+          color: displayBgColor,
           border: Border.all(
-            color: hasIssue ? const Color(0xFFFECACA) : const Color(0xFFBBF7D0),
+            color: displayBorderColor,
             width: 1,
           ),
           borderRadius: BorderRadius.circular(8),
@@ -387,13 +495,13 @@ class _AdminDashboardState extends State<AdminDashboard> {
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
-                color: hasIssue ? kRed : kGreen,
+                color: displayColor,
               ),
             ),
             Icon(
-              hasIssue ? Icons.warning_rounded : Icons.check_circle,
+              displayIcon,
               size: 10,
-              color: hasIssue ? kRed : kGreen.withOpacity(0.4),
+              color: displayColor.withOpacity(0.7),
             ),
           ],
         ),
@@ -494,7 +602,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
             department: null, // null = show all departments
             showDepartmentChart: true,
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 24),
+          // Report Issue Button
+          _buildReportIssueButton(),
+          const SizedBox(height: 28),
           // Departments header
           Text(
             'DEPARTMENTS',
@@ -509,6 +620,69 @@ class _AdminDashboardState extends State<AdminDashboard> {
           // All department wrapped cards
           ...orderedDepartments.map((dept) => _buildDepartmentWrappedCard(dept)),
         ],
+      ),
+    );
+  }
+
+  /// Report Issue button - white with blue border
+  Widget _buildReportIssueButton() {
+    const blueColor = Color(0xFF3B82F6);
+    
+    return GestureDetector(
+      onTap: _openReportIssueFlow,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: blueColor, width: 2),
+          boxShadow: [
+            BoxShadow(
+              color: blueColor.withOpacity(0.1),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: blueColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Icon(Icons.add, color: blueColor, size: 24),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Report an Issue',
+                    style: GoogleFonts.inter(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: kDark,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Tap to report a new issue',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: const Color(0xFF64748B),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios, color: blueColor, size: 16),
+          ],
+        ),
       ),
     );
   }
@@ -1140,13 +1314,23 @@ class _AdminDashboardState extends State<AdminDashboard> {
   }
 
   Widget _floorViewRoomCard(String roomNum, bool hasIssue) {
+    // Get room status from room service data
+    final room = _roomsMap[roomNum];
+    final status = room?.status ?? RoomStatus.ready;
+    
+    // If room has an issue, override color to red
+    final displayColor = hasIssue ? kRed : status.color;
+    final displayBgColor = hasIssue ? const Color(0xFFFEF2F2) : status.backgroundColor;
+    final displayBorderColor = hasIssue ? const Color(0xFFFECACA) : status.borderColor;
+    final displayIcon = hasIssue ? Icons.warning_rounded : _getRoomStatusIcon(status);
+    
     return Container(
       width: 56,
       height: 48,
       decoration: BoxDecoration(
-        color: hasIssue ? const Color(0xFFFEF2F2) : const Color(0xFFF0FDF4),
+        color: displayBgColor,
         border: Border.all(
-          color: hasIssue ? const Color(0xFFFECACA) : const Color(0xFFBBF7D0),
+          color: displayBorderColor,
         ),
         borderRadius: BorderRadius.circular(10),
       ),
@@ -1158,13 +1342,13 @@ class _AdminDashboardState extends State<AdminDashboard> {
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w700,
-              color: hasIssue ? kRed : kGreen,
+              color: displayColor,
             ),
           ),
           Icon(
-            hasIssue ? Icons.warning_rounded : Icons.check_circle,
+            displayIcon,
             size: 12,
-            color: hasIssue ? kRed : kGreen.withOpacity(0.4),
+            color: displayColor.withOpacity(0.7),
           ),
         ],
       ),
