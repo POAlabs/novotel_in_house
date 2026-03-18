@@ -51,7 +51,12 @@ class AppRoutes {
       return managerDashboard;
     }
 
-    // Everyone else (staff, supervisors, all departments including HK and Front Office)
+    // Housekeeping supervisors get their dedicated dashboard
+    if (department == Departments.housekeeping && role == UserRole.supervisor) {
+      return housekeepingDashboard;
+    }
+
+    // Everyone else (staff, all departments including HK and Front Office)
     // uses the same employee dashboard
     return employeeDashboard;
   }

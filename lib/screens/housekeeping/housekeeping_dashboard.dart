@@ -28,9 +28,10 @@ class _HousekeepingDashboardState extends State<HousekeepingDashboard> with Tick
   static const Color kBg = Color(0xFFF8FAFC);
   static const Color kDark = Color(0xFF0F172A);
   static const Color kGrey = Color(0xFF64748B);
+  static const Color kBlue = Color(0xFF3B82F6);
+  static const Color kBlueLight = Color(0xFF93C5FD);
+  static const Color kBlueMedium = Color(0xFF60A5FA);
   static const Color kLuminousGreen = Color(0xFF10B981); // Luminous green for Need Supervision
-  static const Color kGreyLight = Color(0xFF94A3B8); // Light grey
-  static const Color kGreyMedium = Color(0xFF64748B); // Medium grey
 
   // Navigation
   int _currentNavIndex = 1; // Start on Home
@@ -327,6 +328,7 @@ class _HousekeepingDashboardState extends State<HousekeepingDashboard> with Tick
           r.status == RoomStatus.cleaning || r.status == RoomStatus.checkout
         ).length;
         final occupied = rooms.where((r) => r.status == RoomStatus.occupied).length;
+        final ready = rooms.where((r) => r.status == RoomStatus.ready).length;
 
         return AnimatedBuilder(
           animation: _hkEntryController,
@@ -336,34 +338,12 @@ class _HousekeepingDashboardState extends State<HousekeepingDashboard> with Tick
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Header with fade in
+                  // Header with fade in (consistent with other dashboards)
                   Opacity(
                     opacity: _hkHeaderFade.value,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'NOVOTEL HOTEL',
-                          style: GoogleFonts.inter(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
-                            color: const Color(0xFF1E3A5F),
-                            letterSpacing: 1,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'In-House App · Housekeeping Supervisor',
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            color: const Color(0xFF94A3B8),
-                          ),
-                        ),
-                      ],
-                    ),
+                    child: _buildHeader(),
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 24),
                   
                   // Section title
                   Opacity(
@@ -460,22 +440,22 @@ class _HousekeepingDashboardState extends State<HousekeepingDashboard> with Tick
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    '$total',
+                    '$needSupervision',
                     style: GoogleFonts.inter(
                       fontSize: 56,
                       fontWeight: FontWeight.w800,
-                      color: kDark,
+                      color: kLuminousGreen,
                       height: 1,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'TOTAL ROOMS',
+                    'NEED SUPERVISION',
                     style: GoogleFonts.inter(
-                      fontSize: 11,
+                      fontSize: 9,
                       fontWeight: FontWeight.w700,
                       color: kGrey,
-                      letterSpacing: 1.5,
+                      letterSpacing: 1.2,
                     ),
                   ),
                 ],
@@ -527,7 +507,7 @@ class _HousekeepingDashboardState extends State<HousekeepingDashboard> with Tick
             child: _buildStatusItem(
               count: underCleaning,
               label: 'Under Cleaning',
-              color: kGreyLight,
+              color: kBlueLight,
               total: total,
             ),
           ),
@@ -542,7 +522,7 @@ class _HousekeepingDashboardState extends State<HousekeepingDashboard> with Tick
             child: _buildStatusItem(
               count: occupied,
               label: 'Occupied',
-              color: kGreyMedium,
+              color: kBlue,
               total: total,
             ),
           ),
@@ -1227,16 +1207,15 @@ class _DonutChartPainter extends CustomPainter {
     
     // Draw segments sequentially
     double startAngle = -90; // Start from top
+    final rect = Rect.fromCircle(center: center, radius: radius);
     
     // 1. Need Supervision (Luminous Green)
     if (supervisionAngle > 0) {
       final paint1 = Paint()
         ..color = const Color(0xFF10B981)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = strokeWidth
-        ..strokeCap = StrokeCap.round;
+        ..strokeWidth = strokeWidth;
       
-      final rect = Rect.fromCircle(center: center, radius: radius);
       canvas.drawArc(
         rect,
         _degreesToRadians(startAngle),
@@ -1247,15 +1226,13 @@ class _DonutChartPainter extends CustomPainter {
       startAngle += supervisionAngle;
     }
     
-    // 2. Under Cleaning (Light Grey)
+    // 2. Under Cleaning (Blue Medium)
     if (cleaningAngle > 0) {
       final paint2 = Paint()
-        ..color = const Color(0xFF94A3B8)
+        ..color = const Color(0xFF60A5FA)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = strokeWidth
-        ..strokeCap = StrokeCap.round;
+        ..strokeWidth = strokeWidth;
       
-      final rect = Rect.fromCircle(center: center, radius: radius);
       canvas.drawArc(
         rect,
         _degreesToRadians(startAngle),
@@ -1266,15 +1243,13 @@ class _DonutChartPainter extends CustomPainter {
       startAngle += cleaningAngle;
     }
     
-    // 3. Occupied (Medium Grey)
+    // 3. Occupied (Blue)
     if (occupiedAngle > 0) {
       final paint3 = Paint()
-        ..color = const Color(0xFF64748B)
+        ..color = const Color(0xFF3B82F6)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = strokeWidth
-        ..strokeCap = StrokeCap.round;
+        ..strokeWidth = strokeWidth;
       
-      final rect = Rect.fromCircle(center: center, radius: radius);
       canvas.drawArc(
         rect,
         _degreesToRadians(startAngle),

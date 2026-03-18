@@ -1287,7 +1287,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> with TickerProvid
               children: [
                 _buildLegendItem('IN', const Color(0xFF3B82F6)),
                 const SizedBox(width: 12),
-                _buildLegendItem('OUT', const Color(0xFFF59E0B)),
+                _buildLegendItem('OUT', const Color(0xFF0F172A)),
               ],
             ),
           ],
@@ -1342,57 +1342,189 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> with TickerProvid
       [max, day.checkIns, day.checkOuts].reduce((a, b) => a > b ? a : b)
     );
     
-    return SizedBox(
-      height: 180,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: data.map((day) => _buildDayBar(day, maxValue)).toList(),
-      ),
+    // Calculate nice Y-axis scale
+    final yAxisMax = ((maxValue / 5).ceil() * 5).toInt() + 5;
+    final gridLines = 5;
+    final gridInterval = yAxisMax / gridLines;
+    
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          height: 220,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              // Y-axis title (rotated, reads bottom-to-top)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 28),
+                child: RotatedBox(
+                  quarterTurns: 3,
+                  child: Text(
+                    'GUESTS',
+                    style: GoogleFonts.inter(
+                      fontSize: 8,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF64748B),
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              // Y-axis labels
+              SizedBox(
+                width: 26,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: List.generate(gridLines + 1, (index) {
+                    final value = (yAxisMax - (index * gridInterval)).toInt();
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 4),
+                      child: Text(
+                        '$value',
+                        style: GoogleFonts.inter(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF334155),
+                        ),
+                      ),
+                    );
+                  }),
+                ),
+              ),
+              // Chart area
+              Expanded(
+                child: Stack(
+                  children: [
+                    // Horizontal grid lines
+                    ...List.generate(gridLines + 1, (index) {
+                      final position = (index / gridLines);
+                      return Positioned(
+                        left: 0,
+                        right: 0,
+                        top: position * 180,
+                        child: Container(
+                          height: 1,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                const Color(0xFFE2E8F0).withOpacity(0.3),
+                                const Color(0xFFE2E8F0),
+                                const Color(0xFFE2E8F0).withOpacity(0.3),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    }),
+                    // Bars
+                    Positioned.fill(
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 10, bottom: 30),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: data.map((day) => _buildDayBar(day, yAxisMax)).toList(),
+                        ),
+                      ),
+                    ),
+                    // X-axis line
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 28,
+                      child: Container(
+                        height: 2,
+                        color: const Color(0xFF0F172A),
+                      ),
+                    ),
+                    // X-axis labels (day names)
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      height: 28,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: data.map((day) {
+                          final dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                          final dayName = dayNames[day.day.weekday - 1];
+                          return Expanded(
+                            child: Center(
+                              child: Text(
+                                dayName,
+                                style: GoogleFonts.inter(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFF0F172A),
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        // X-axis title
+        Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Row(
+            children: [
+              const SizedBox(width: 44), // align with chart area
+              Expanded(
+                child: Center(
+                  child: Text(
+                    'DAY OF WEEK',
+                    style: GoogleFonts.inter(
+                      fontSize: 8,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF64748B),
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
   
   Widget _buildDayBar(_GuestFlowDay day, int maxValue) {
-    final dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    final dayName = dayNames[day.day.weekday - 1];
-    
     return Expanded(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 3),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.end,
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            // Check-in bar
-            Flexible(
+            // Check-in bar (Site 1 / IN)
+            Expanded(
               child: Container(
-                width: double.infinity,
-                height: maxValue > 0 ? (day.checkIns / maxValue) * 140 : 0,
+                height: maxValue > 0 ? (day.checkIns / maxValue) * 150 : 0,
                 decoration: BoxDecoration(
                   color: const Color(0xFF3B82F6),
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(3)),
                 ),
               ),
             ),
-            const SizedBox(height: 2),
-            // Check-out bar
-            Flexible(
+            const SizedBox(width: 2),
+            // Check-out bar (Site 2 / OUT)
+            Expanded(
               child: Container(
-                width: double.infinity,
-                height: maxValue > 0 ? (day.checkOuts / maxValue) * 140 : 0,
+                height: maxValue > 0 ? (day.checkOuts / maxValue) * 150 : 0,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF59E0B),
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+                  color: const Color(0xFF0F172A),
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(3)),
                 ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            // Day label
-            Text(
-              dayName,
-              style: GoogleFonts.inter(
-                fontSize: 9,
-                fontWeight: FontWeight.w600,
-                color: const Color(0xFF94A3B8),
               ),
             ),
           ],
