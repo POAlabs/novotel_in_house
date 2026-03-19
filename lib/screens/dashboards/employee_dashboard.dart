@@ -117,7 +117,9 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> with TickerProvid
   late Animation<double> _foMainCircleScale;
   late Animation<double> _foSecondaryCirclesScale;
   late Animation<double> _foChartSlideUp;
+  late Animation<double> _foChartFade;
   late Animation<double> _foHeaderFade;
+  late Animation<double> _foProgressAnimation;
   
   // Housekeeping Supervisor animation controllers
   late AnimationController _hkEntryController;
@@ -166,44 +168,60 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> with TickerProvid
     // Start entry animation
     _entryController.forward();
     
-    // Front Office entry animation (1.5 seconds for elegant reveal)
+    // Front Office entry animation — 2800ms for a premium, hotel-quality feel
     _foEntryController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1500),
+      duration: const Duration(milliseconds: 2800),
     );
-    
-    // Header fade in
+
+    // Header fades in first — graceful and slow
     _foHeaderFade = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _foEntryController,
-        curve: const Interval(0.0, 0.3, curve: Curves.easeOut),
+        curve: const Interval(0.0, 0.22, curve: Curves.easeOut),
       ),
     );
-    
-    // Main circle scale with elastic bounce
+
+    // Main circle scales in with elastic bounce — starts after header
     _foMainCircleScale = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _foEntryController,
-        curve: const Interval(0.1, 0.6, curve: Curves.elasticOut),
+        curve: const Interval(0.12, 0.58, curve: Curves.elasticOut),
       ),
     );
-    
-    // Secondary circles scale with delay
+
+    // Secondary circles — staggered later for a cascade effect
     _foSecondaryCirclesScale = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _foEntryController,
-        curve: const Interval(0.3, 0.75, curve: Curves.elasticOut),
+        curve: const Interval(0.35, 0.78, curve: Curves.elasticOut),
       ),
     );
-    
-    // Chart slide up from bottom
-    _foChartSlideUp = Tween<double>(begin: 50.0, end: 0.0).animate(
+
+    // Progress rings fill up as circles finish scaling
+    _foProgressAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _foEntryController,
-        curve: const Interval(0.5, 1.0, curve: Curves.easeOutCubic),
+        curve: const Interval(0.20, 0.88, curve: Curves.easeOutCubic),
       ),
     );
-    
+
+    // Chart slides up from further below — starts after circles settle
+    _foChartSlideUp = Tween<double>(begin: 80.0, end: 0.0).animate(
+      CurvedAnimation(
+        parent: _foEntryController,
+        curve: const Interval(0.62, 1.0, curve: Curves.easeOutCubic),
+      ),
+    );
+
+    // Chart fades in cleanly alongside the slide
+    _foChartFade = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _foEntryController,
+        curve: const Interval(0.58, 0.95, curve: Curves.easeOut),
+      ),
+    );
+
     // Start Front Office animation
     _foEntryController.forward();
   }
@@ -1073,9 +1091,9 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> with TickerProvid
                   
                   // Main circular metric - Ready Rooms with scale animation
                   Transform.scale(
-                    scale: _foMainCircleScale.value,
+                    scale: _foMainCircleScale.value.clamp(0.0, 1.0),
                     child: Opacity(
-                      opacity: _foMainCircleScale.value,
+                      opacity: _foMainCircleScale.value.clamp(0.0, 1.0),
                       child: _buildCircularMetric(
                         value: readyRooms,
                         total: totalRooms,
@@ -1087,12 +1105,12 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> with TickerProvid
                     ),
                   ),
                   const SizedBox(height: 28),
-                  
+
                   // Secondary metrics - Occupied and Cleaning with delayed scale
                   Transform.scale(
-                    scale: _foSecondaryCirclesScale.value,
+                    scale: _foSecondaryCirclesScale.value.clamp(0.0, 1.0),
                     child: Opacity(
-                      opacity: _foSecondaryCirclesScale.value,
+                      opacity: _foSecondaryCirclesScale.value.clamp(0.0, 1.0),
                       child: Row(
                         children: [
                           Expanded(
@@ -1112,7 +1130,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> with TickerProvid
                               total: totalRooms,
                               label: 'CLEANING',
                               subLabel: '',
-                              color: const Color(0xFFF59E0B),
+                              color: const Color(0xFF0F172A),
                               size: 140,
                             ),
                           ),
@@ -1121,12 +1139,12 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> with TickerProvid
                     ),
                   ),
                   const SizedBox(height: 32),
-                  
-                  // Guest Flow Section with slide up animation
+
+                  // Guest Flow Section — slides up and fades in after circles settle
                   Transform.translate(
                     offset: Offset(0, _foChartSlideUp.value),
                     child: Opacity(
-                      opacity: _foChartSlideUp.value < 40 ? (40 - _foChartSlideUp.value) / 40 : 1.0,
+                      opacity: _foChartFade.value,
                       child: _buildGuestFlowSection(rooms),
                     ),
                   ),
@@ -1139,7 +1157,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> with TickerProvid
     );
   }
   
-  /// Circular progress metric widget
+  /// Premium circular progress metric widget
   Widget _buildCircularMetric({
     required int value,
     required int total,
@@ -1148,32 +1166,54 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> with TickerProvid
     required Color color,
     required double size,
   }) {
-    final progress = total > 0 ? value / total : 0.0;
-    
+    // Progress ring fills up as part of the entry animation
+    final animatedProgress = total > 0
+        ? (value / total) * _foProgressAnimation.value
+        : 0.0;
+    final percentage = total > 0 ? ((value / total) * 100).round() : 0;
+
     return Center(
       child: Container(
         width: size,
         height: size,
         decoration: BoxDecoration(
-          color: Colors.white,
+          gradient: RadialGradient(
+            colors: [
+              Colors.white,
+              color.withOpacity(0.07),
+            ],
+            radius: 0.85,
+          ),
           shape: BoxShape.circle,
+          border: Border.all(
+            color: color.withOpacity(0.18),
+            width: 1.5,
+          ),
           boxShadow: [
+            // Color-tinted glow
             BoxShadow(
-              color: Colors.black.withOpacity(0.06),
-              blurRadius: 24,
+              color: color.withOpacity(0.22),
+              blurRadius: 36,
+              spreadRadius: 4,
+              offset: const Offset(0, 10),
+            ),
+            // Soft depth shadow
+            BoxShadow(
+              color: Colors.black.withOpacity(0.07),
+              blurRadius: 16,
               offset: const Offset(0, 4),
             ),
           ],
         ),
         child: Stack(
           children: [
-            // Circular progress ring
+            // Circular progress ring — animated fill
             Positioned.fill(
               child: Padding(
-                padding: const EdgeInsets.all(8),
+                padding: EdgeInsets.all(size * 0.05),
                 child: CircularProgressIndicator(
-                  value: progress,
-                  strokeWidth: 8,
+                  value: animatedProgress,
+                  strokeWidth: size * 0.048,
                   backgroundColor: const Color(0xFFF1F5F9),
                   valueColor: AlwaysStoppedAnimation<Color>(color),
                   strokeCap: StrokeCap.round,
@@ -1188,17 +1228,17 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> with TickerProvid
                   Text(
                     '$value',
                     style: GoogleFonts.inter(
-                      fontSize: size * 0.28,
+                      fontSize: size * 0.26,
                       fontWeight: FontWeight.w800,
                       color: color,
                       height: 1,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 3),
                   Text(
                     label,
                     style: GoogleFonts.inter(
-                      fontSize: size * 0.065,
+                      fontSize: size * 0.063,
                       fontWeight: FontWeight.w700,
                       color: kDark,
                       letterSpacing: 1.5,
@@ -1208,13 +1248,30 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> with TickerProvid
                     Text(
                       subLabel,
                       style: GoogleFonts.inter(
-                        fontSize: size * 0.055,
+                        fontSize: size * 0.053,
                         fontWeight: FontWeight.w500,
                         color: const Color(0xFF94A3B8),
                         letterSpacing: 1,
                       ),
                     ),
                   ],
+                  const SizedBox(height: 5),
+                  // Percentage badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: color.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '$percentage%',
+                      style: GoogleFonts.inter(
+                        fontSize: size * 0.048,
+                        fontWeight: FontWeight.w700,
+                        color: color,
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -1224,35 +1281,36 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> with TickerProvid
     );
   }
   
-  /// Guest Flow Section with bar chart
+  /// Room Activity Section — bar chart using real Firestore room timestamps
   Widget _buildGuestFlowSection(List<RoomModel> rooms) {
-    // Calculate check-in and check-out trends for the last 7 days
     final now = DateTime.now();
+    // Build 7-day activity from actual room timestamps
     final weekData = List.generate(7, (index) {
       final day = now.subtract(Duration(days: 6 - index));
+      final dayStart = DateTime(day.year, day.month, day.day);
+      final dayEnd = dayStart.add(const Duration(days: 1));
+
+      // Rooms approved/made ready on this day
+      final readyCount = rooms.where((r) =>
+        r.readyAt != null &&
+        r.readyAt!.isAfter(dayStart) &&
+        r.readyAt!.isBefore(dayEnd)
+      ).length;
+
+      // Rooms checked out (guest departed) on this day
+      final checkoutCount = rooms.where((r) =>
+        r.checkoutAt != null &&
+        r.checkoutAt!.isAfter(dayStart) &&
+        r.checkoutAt!.isBefore(dayEnd)
+      ).length;
+
       return _GuestFlowDay(
         day: day,
-        checkIns: 0, // TODO: Implement actual data tracking
-        checkOuts: 0, // TODO: Implement actual data tracking
+        checkIns: readyCount,
+        checkOuts: checkoutCount,
       );
     });
-    
-    // Mock data for demonstration
-    weekData[0].checkIns = 12;
-    weekData[0].checkOuts = 8;
-    weekData[1].checkIns = 15;
-    weekData[1].checkOuts = 10;
-    weekData[2].checkIns = 18;
-    weekData[2].checkOuts = 14;
-    weekData[3].checkIns = 20;
-    weekData[3].checkOuts = 16;
-    weekData[4].checkIns = 17;
-    weekData[4].checkOuts = 19;
-    weekData[5].checkIns = 22;
-    weekData[5].checkOuts = 15;
-    weekData[6].checkIns = 19;
-    weekData[6].checkOuts = 17;
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1264,7 +1322,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> with TickerProvid
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Guest Flow',
+                  'Room Activity',
                   style: GoogleFonts.inter(
                     fontSize: 18,
                     fontWeight: FontWeight.w800,
@@ -1273,7 +1331,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> with TickerProvid
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Check-in vs Check-out',
+                  'Ready vs Checkout — last 7 days',
                   style: GoogleFonts.inter(
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
@@ -1285,9 +1343,9 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> with TickerProvid
             // Legend
             Row(
               children: [
-                _buildLegendItem('IN', const Color(0xFF3B82F6)),
+                _buildLegendItem('READY', const Color(0xFF60A5FA)),
                 const SizedBox(width: 12),
-                _buildLegendItem('OUT', const Color(0xFF0F172A)),
+                _buildLegendItem('CHECKOUT', const Color(0xFF0F172A)),
               ],
             ),
           ],
@@ -1361,7 +1419,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> with TickerProvid
                 child: RotatedBox(
                   quarterTurns: 3,
                   child: Text(
-                    'GUESTS',
+                    'ROOMS',
                     style: GoogleFonts.inter(
                       fontSize: 8,
                       fontWeight: FontWeight.w700,
@@ -1506,24 +1564,24 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> with TickerProvid
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            // Check-in bar (Site 1 / IN)
+            // Ready bar — bright blue
             Expanded(
               child: Container(
-                height: maxValue > 0 ? (day.checkIns / maxValue) * 150 : 0,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF3B82F6),
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(3)),
+                height: maxValue > 0 ? (day.checkIns / maxValue) * 150 : 2,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF60A5FA),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(4)),
                 ),
               ),
             ),
             const SizedBox(width: 2),
-            // Check-out bar (Site 2 / OUT)
+            // Checkout bar — dark navy
             Expanded(
               child: Container(
-                height: maxValue > 0 ? (day.checkOuts / maxValue) * 150 : 0,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF0F172A),
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(3)),
+                height: maxValue > 0 ? (day.checkOuts / maxValue) * 150 : 2,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF0F172A),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(4)),
                 ),
               ),
             ),
